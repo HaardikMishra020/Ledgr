@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from argon2 import PasswordHasher
@@ -37,3 +39,13 @@ def decode_access_token(token: str) -> str:
         token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
     )
     return payload["sub"]
+
+
+def new_refresh_token() -> tuple[str, str]:
+    """Return (raw_token, sha256_hash). Store the hash; send the raw token."""
+    token = secrets.token_urlsafe(48)
+    return token, hashlib.sha256(token.encode()).hexdigest()
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
