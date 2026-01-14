@@ -20,6 +20,10 @@ from app.schemas.auth import (
     RegisterRequest,
     TokenPairResponse,
 )
+from app.schemas.users import UserResponse
+
+from app.core.deps import get_current_user
+from app.models.user import User as UserModel
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -95,3 +99,8 @@ async def logout(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     if session:
         await db.delete(session)
         await db.commit()
+
+
+@router.get("/me", response_model=UserResponse)
+async def me(current_user: UserModel = Depends(get_current_user)):
+    return current_user
