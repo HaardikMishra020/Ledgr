@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.event import Event
 from app.models.group_member import GroupMember
 from app.models.user import User
+from fastapi import Query
 from app.schemas.events import EventResponse
 from app.schemas.expenses import AddExpenseRequest, EditExpenseRequest, RecordPaymentRequest
 
@@ -170,3 +171,21 @@ async def record_payment(
     await db.commit()
     await db.refresh(event)
     return event
+
+
+@router.get("/{group_id}/activity", response_model=list[EventResponse])
+async def activity_feed(
+    group_id: uuid.UUID,
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _require_member(group_id, current_user.id, db)
+
+    result = await db.execute(
+        select(Event)
+        .where(Event.group_id == group_id)
+        .order_by(Event.created_at.asc())
+        .limit(limit)
+    )
+    return result.scalars().all()
