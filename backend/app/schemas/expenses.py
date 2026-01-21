@@ -11,3 +11,17 @@ class AddExpenseRequest(BaseModel):
     currency: str = "USD"
     paid_by: Optional[uuid.UUID] = None
     occurred_at: Optional[datetime] = None
+
+
+class EditExpenseRequest(BaseModel):
+    description: str
+    amount: int
+    currency: str = "USD"
+    paid_by: Optional[uuid.UUID] = None
+    occurred_at: Optional[datetime] = None
+
+
+class RecordPaymentRequest(BaseModel):
+    to_user_id: uuid.UUID
+    amount: int  # integer minor units
+    currency: str = "USD"

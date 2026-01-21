@@ -11,7 +11,7 @@ from app.models.event import Event
 from app.models.group_member import GroupMember
 from app.models.user import User
 from app.schemas.events import EventResponse
-from app.schemas.expenses import AddExpenseRequest
+from app.schemas.expenses import AddExpenseRequest, EditExpenseRequest, RecordPaymentRequest
 
 router = APIRouter(prefix="/groups", tags=["expenses"])
 
@@ -26,6 +26,17 @@ def _equal_split(amount: int, members: list) -> list[dict]:
     ]
 
 
+async def _require_member(group_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> None:
+    member = await db.scalar(
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == user_id,
+        )
+    )
+    if not member:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="not a member of this group")
+
+
 @router.post("/{group_id}/expenses", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 async def add_expense(
     group_id: uuid.UUID,
@@ -33,14 +44,7 @@ async def add_expense(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    member = await db.scalar(
-        select(GroupMember).where(
-            GroupMember.group_id == group_id,
-            GroupMember.user_id == current_user.id,
-        )
-    )
-    if not member:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="not a member of this group")
+    await _require_member(group_id, current_user.id, db)
 
     members = (
         await db.execute(select(GroupMember).where(GroupMember.group_id == group_id))
@@ -64,6 +68,100 @@ async def add_expense(
     event = Event(
         group_id=group_id,
         event_type="expense_added",
+        event_version=1,
+        payload=payload,
+        actor_user_id=current_user.id,
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    return event
+
+
+@router.put("/{group_id}/expenses/{expense_id}", response_model=EventResponse)
+async def edit_expense(
+    group_id: uuid.UUID,
+    expense_id: str,
+    body: EditExpenseRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _require_member(group_id, current_user.id, db)
+
+    members = (
+        await db.execute(select(GroupMember).where(GroupMember.group_id == group_id))
+    ).scalars().all()
+
+    split = _equal_split(body.amount, members)
+    paid_by = body.paid_by or current_user.id
+    occurred = (body.occurred_at or datetime.now(timezone.utc)).isoformat()
+
+    payload = {
+        "expense_id": expense_id,
+        "amount": str(body.amount),
+        "currency": body.currency,
+        "fx_to_default": "1.0000",
+        "paid_by": str(paid_by),
+        "split": split,
+        "description": body.description,
+        "occurred_at": occurred,
+    }
+
+    event = Event(
+        group_id=group_id,
+        event_type="expense_edited",
+        event_version=1,
+        payload=payload,
+        actor_user_id=current_user.id,
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    return event
+
+
+@router.delete("/{group_id}/expenses/{expense_id}", response_model=EventResponse)
+async def delete_expense(
+    group_id: uuid.UUID,
+    expense_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _require_member(group_id, current_user.id, db)
+
+    event = Event(
+        group_id=group_id,
+        event_type="expense_deleted",
+        event_version=1,
+        payload={"expense_id": expense_id},
+        actor_user_id=current_user.id,
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    return event
+
+
+@router.post("/{group_id}/payments", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
+async def record_payment(
+    group_id: uuid.UUID,
+    body: RecordPaymentRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _require_member(group_id, current_user.id, db)
+
+    payload = {
+        "from": str(current_user.id),
+        "to": str(body.to_user_id),
+        "amount": str(body.amount),
+        "currency": body.currency,
+        "fx_to_default": "1.0000",
+    }
+
+    event = Event(
+        group_id=group_id,
+        event_type="payment_made",
         event_version=1,
         payload=payload,
         actor_user_id=current_user.id,
