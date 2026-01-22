@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.models.group import Group
 from app.models.group_member import GroupMember
 from app.models.user import User
+from app.projection.naive import compute_balances
 from app.schemas.groups import GroupCreate, GroupResponse
 
 router = APIRouter(prefix="/groups", tags=["groups"])
@@ -65,3 +66,22 @@ async def get_group(
 
     group = await db.scalar(select(Group).where(Group.id == group_id))
     return group
+
+
+@router.get("/{group_id}/balances")
+async def get_balances(
+    group_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    member = await db.scalar(
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == current_user.id,
+        )
+    )
+    if not member:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="group not found")
+
+    balances = await compute_balances(group_id, db)
+    return {"balances": balances}
