@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, SmallInteger, Text, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, SmallInteger, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,6 +17,7 @@ class Event(Base):
     group_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("groups.id"), nullable=False
     )
+    sequence_number: Mapped[int] = mapped_column(BigInteger, nullable=False)
     event_type: Mapped[str] = mapped_column(Text, nullable=False)
     event_version: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
@@ -27,4 +28,8 @@ class Event(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    __table_args__ = (Index("ix_events_group_created", "group_id", "created_at"),)
+    __table_args__ = (
+        UniqueConstraint("group_id", "sequence_number", name="uq_events_group_seq"),
+        Index("ix_events_group_created", "group_id", "created_at"),
+        Index("ix_events_group_seq", "group_id", "sequence_number"),
+    )

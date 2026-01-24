@@ -1,16 +1,16 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user
 from app.db.session import get_db
+from app.events.store import append_event
 from app.models.event import Event
 from app.models.group_member import GroupMember
 from app.models.user import User
-from fastapi import Query
 from app.schemas.events import EventResponse
 from app.schemas.expenses import AddExpenseRequest, EditExpenseRequest, RecordPaymentRequest
 
@@ -66,14 +66,7 @@ async def add_expense(
         "occurred_at": occurred,
     }
 
-    event = Event(
-        group_id=group_id,
-        event_type="expense_added",
-        event_version=1,
-        payload=payload,
-        actor_user_id=current_user.id,
-    )
-    db.add(event)
+    event = await append_event(group_id, "expense_added", payload, current_user.id, db)
     await db.commit()
     await db.refresh(event)
     return event
@@ -108,14 +101,7 @@ async def edit_expense(
         "occurred_at": occurred,
     }
 
-    event = Event(
-        group_id=group_id,
-        event_type="expense_edited",
-        event_version=1,
-        payload=payload,
-        actor_user_id=current_user.id,
-    )
-    db.add(event)
+    event = await append_event(group_id, "expense_edited", payload, current_user.id, db)
     await db.commit()
     await db.refresh(event)
     return event
@@ -130,14 +116,8 @@ async def delete_expense(
 ):
     await _require_member(group_id, current_user.id, db)
 
-    event = Event(
-        group_id=group_id,
-        event_type="expense_deleted",
-        event_version=1,
-        payload={"expense_id": expense_id},
-        actor_user_id=current_user.id,
-    )
-    db.add(event)
+    payload = {"expense_id": expense_id}
+    event = await append_event(group_id, "expense_deleted", payload, current_user.id, db)
     await db.commit()
     await db.refresh(event)
     return event
@@ -160,14 +140,7 @@ async def record_payment(
         "fx_to_default": "1.0000",
     }
 
-    event = Event(
-        group_id=group_id,
-        event_type="payment_made",
-        event_version=1,
-        payload=payload,
-        actor_user_id=current_user.id,
-    )
-    db.add(event)
+    event = await append_event(group_id, "payment_made", payload, current_user.id, db)
     await db.commit()
     await db.refresh(event)
     return event
