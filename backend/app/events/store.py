@@ -4,8 +4,12 @@ Event store: the single path for appending to the events table.
 Uses optimistic concurrency control (OCC) via the unique constraint on
 (group_id, sequence_number). If two writers race, one gets an IntegrityError
 and retries with the next sequence number.
+
+Supports idempotency keys: duplicate submissions with the same key return the
+existing event without creating a new one.
 """
 import uuid
+from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
@@ -23,7 +27,15 @@ async def append_event(
     payload: dict,
     actor_user_id: uuid.UUID,
     db: AsyncSession,
+    idempotency_key: Optional[uuid.UUID] = None,
 ) -> Event:
+    if idempotency_key is not None:
+        existing = await db.scalar(
+            select(Event).where(Event.idempotency_key == idempotency_key)
+        )
+        if existing:
+            return existing
+
     for attempt in range(_MAX_OCC_RETRIES):
         try:
             next_seq = await _next_sequence(group_id, db)
@@ -34,6 +46,7 @@ async def append_event(
                 event_version=1,
                 payload=payload,
                 actor_user_id=actor_user_id,
+                idempotency_key=idempotency_key,
             )
             db.add(event)
             await db.flush()

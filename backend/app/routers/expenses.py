@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,10 +39,20 @@ async def _require_member(group_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSess
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="not a member of this group")
 
 
+def _parse_idempotency_key(raw: Optional[str]) -> Optional[uuid.UUID]:
+    if not raw:
+        return None
+    try:
+        return uuid.UUID(raw)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Idempotency-Key must be a valid UUID")
+
+
 @router.post("/{group_id}/expenses", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 async def add_expense(
     group_id: uuid.UUID,
     body: AddExpenseRequest,
+    idempotency_key_header: Optional[str] = Header(default=None, alias="Idempotency-Key"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -66,7 +77,8 @@ async def add_expense(
         "occurred_at": occurred,
     }
 
-    event = await append_event(group_id, "expense_added", payload, current_user.id, db)
+    idem_key = _parse_idempotency_key(idempotency_key_header)
+    event = await append_event(group_id, "expense_added", payload, current_user.id, db, idem_key)
     await db.commit()
     await db.refresh(event)
     return event
@@ -77,6 +89,7 @@ async def edit_expense(
     group_id: uuid.UUID,
     expense_id: str,
     body: EditExpenseRequest,
+    idempotency_key_header: Optional[str] = Header(default=None, alias="Idempotency-Key"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -101,7 +114,8 @@ async def edit_expense(
         "occurred_at": occurred,
     }
 
-    event = await append_event(group_id, "expense_edited", payload, current_user.id, db)
+    idem_key = _parse_idempotency_key(idempotency_key_header)
+    event = await append_event(group_id, "expense_edited", payload, current_user.id, db, idem_key)
     await db.commit()
     await db.refresh(event)
     return event
@@ -111,13 +125,15 @@ async def edit_expense(
 async def delete_expense(
     group_id: uuid.UUID,
     expense_id: str,
+    idempotency_key_header: Optional[str] = Header(default=None, alias="Idempotency-Key"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     await _require_member(group_id, current_user.id, db)
 
+    idem_key = _parse_idempotency_key(idempotency_key_header)
     payload = {"expense_id": expense_id}
-    event = await append_event(group_id, "expense_deleted", payload, current_user.id, db)
+    event = await append_event(group_id, "expense_deleted", payload, current_user.id, db, idem_key)
     await db.commit()
     await db.refresh(event)
     return event
@@ -127,6 +143,7 @@ async def delete_expense(
 async def record_payment(
     group_id: uuid.UUID,
     body: RecordPaymentRequest,
+    idempotency_key_header: Optional[str] = Header(default=None, alias="Idempotency-Key"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -140,7 +157,8 @@ async def record_payment(
         "fx_to_default": "1.0000",
     }
 
-    event = await append_event(group_id, "payment_made", payload, current_user.id, db)
+    idem_key = _parse_idempotency_key(idempotency_key_header)
+    event = await append_event(group_id, "payment_made", payload, current_user.id, db, idem_key)
     await db.commit()
     await db.refresh(event)
     return event
