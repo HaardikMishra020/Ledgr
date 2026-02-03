@@ -7,6 +7,9 @@ and retries with the next sequence number.
 
 Supports idempotency keys: duplicate submissions with the same key return the
 existing event without creating a new one.
+
+Auto-triggers a snapshot rebuild every _SNAPSHOT_INTERVAL events so the delta
+replay path (commit 21) never reads more than _SNAPSHOT_INTERVAL events.
 """
 import uuid
 from typing import Optional
@@ -19,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.event import Event
 
 _MAX_OCC_RETRIES = 5
+_SNAPSHOT_INTERVAL = 50
 
 
 async def append_event(
@@ -50,6 +54,11 @@ async def append_event(
             )
             db.add(event)
             await db.flush()
+
+            if next_seq % _SNAPSHOT_INTERVAL == 0:
+                from app.snapshots.writer import write_snapshot
+                await write_snapshot(group_id, db)
+
             return event
         except IntegrityError as exc:
             await db.rollback()

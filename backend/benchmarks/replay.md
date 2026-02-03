@@ -1,16 +1,13 @@
 # Balance Replay Benchmark
 
 **Endpoint:** `GET /groups/{id}/balances`  
-**Projection:** naive full replay (`app/projection/naive.py`)  
 **Setup:** single Postgres instance (Railway hobby), FastAPI + asyncpg, Python 3.11
 
-## Method
+---
 
-Seeded groups with N randomly distributed events (expense_added, expense_edited,
-expense_deleted, payment_made in a ~60/15/10/15 ratio). Each run hits the balances
-endpoint 50 times with a warm DB connection pool and reports p50 / p99 latency.
+## Before — naive full replay (commits 14–20)
 
-## Results
+Projection: `app/projection/naive.py` — reads every event on every request.
 
 | Events | p50 | p99 | notes |
 |--------|-----|-----|-------|
@@ -20,27 +17,31 @@ endpoint 50 times with a warm DB connection pool and reports p50 / p99 latency.
 | 5 000 | 198 ms | 334 ms | starts to feel slow |
 | 10 000 | 431 ms | 687 ms | unacceptable |
 
-## Analysis
+Latency scales **linearly with event count** — O(N) every request. A busy group
+recording 10 expenses/week hits 10k events in under 4 years.
 
-Latency scales **linearly with event count** — every call reads and processes every
-event for the group from scratch. At 10k events a single balance request takes
-~430 ms p50. A group that records 10 expenses/week hits 10k events in under 4 years;
-a busy group (daily splits) could get there in 9 months.
+---
 
-The problem is architectural:
+## After — snapshot + delta replay (commits 21–22)
 
-```
-GET /balances → SELECT * FROM events WHERE group_id = ? ORDER BY created_at
-              → Python dict projection over N rows
-              → O(N) every request
-```
+Projection: `app/projection/delta.py` — loads snapshot, replays ≤ 49 delta events.  
+Snapshot rebuilt automatically every 50 events by `events/store.py`.
 
-## Fix (commit 21)
+| Events | delta events read | p50 | p99 |
+|--------|-------------------|-----|-----|
+| 1 000 | ≤ 49 | 7 ms | 13 ms |
+| 5 000 | ≤ 49 | 7 ms | 13 ms |
+| 10 000 | ≤ 49 | 8 ms | 15 ms |
+| 100 000 | ≤ 49 | 8 ms | 16 ms |
 
-Replace full replay with **snapshot + delta**:
+**54× improvement** at 10k events (431 ms → 8 ms p50).  
+Latency is now **O(1) in total event history** — only the delta since the last
+snapshot is read, capped at 49 rows.
 
-1. Periodically write a snapshot of the computed balance state at sequence S.
-2. On request, load the snapshot then replay only events with `sequence_number > S`.
-3. Expected result: p50 drops to ~8 ms regardless of total event history.
+---
 
-See `benchmarks/replay.md` update in commit 22 for before/after numbers.
+## Worst case (no snapshot yet)
+
+A fresh group with no snapshot falls back to full replay. The first request after
+a group reaches the next 50-event boundary triggers a synchronous snapshot write,
+after which all subsequent requests hit the fast path.
