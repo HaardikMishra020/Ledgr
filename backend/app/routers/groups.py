@@ -9,7 +9,7 @@ from app.db.session import get_db
 from app.models.group import Group
 from app.models.group_member import GroupMember
 from app.models.user import User
-from app.projection.naive import compute_balances
+from app.projection.delta import compute_balances
 from app.schemas.groups import GroupCreate, GroupResponse
 
 router = APIRouter(prefix="/groups", tags=["groups"])

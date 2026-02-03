@@ -12,9 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.event import Event
 
 
-async def compute_balances(
+async def compute_state(
     group_id: uuid.UUID, db: AsyncSession
-) -> dict[str, dict[str, int]]:
+) -> dict:
+    """
+    Full replay returning both projected balances AND current expense state.
+    The snapshot writer stores both so delta replay can correctly handle
+    expense_edited and expense_deleted events.
+    """
     events = (
         await db.execute(
             select(Event)
@@ -23,7 +28,6 @@ async def compute_balances(
         )
     ).scalars().all()
 
-    # Replay events into current expense state (last write wins per expense_id)
     expenses: dict[str, dict] = {}
     payments: list[dict] = []
 
@@ -38,9 +42,6 @@ async def compute_balances(
         elif event.event_type == "payment_made":
             payments.append(p)
 
-    # Project into net balances:
-    #   positive  = others owe you
-    #   negative  = you owe others
     balances: dict[str, dict[str, int]] = {}
 
     def add(user_id: str, currency: str, amount: int) -> None:
@@ -50,18 +51,20 @@ async def compute_balances(
     for expense in expenses.values():
         currency = expense["currency"]
         amount = int(expense["amount"])
-        # Payer fronted the full amount
         add(expense["paid_by"], currency, amount)
-        # Each member owes their share (including the payer's own share)
         for split in expense["split"]:
             add(split["user_id"], currency, -int(split["share"]))
 
     for payment in payments:
         currency = payment["currency"]
         amount = int(payment["amount"])
-        # Sender reduces their debt → balance improves
         add(payment["from"], currency, amount)
-        # Receiver is owed less → balance decreases
         add(payment["to"], currency, -amount)
 
-    return balances
+    return {"balances": balances, "expenses": expenses}
+
+
+async def compute_balances(
+    group_id: uuid.UUID, db: AsyncSession
+) -> dict[str, dict[str, int]]:
+    return (await compute_state(group_id, db))["balances"]

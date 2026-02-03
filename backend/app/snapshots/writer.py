@@ -1,8 +1,8 @@
 """
-Snapshot writer: compute current balance state and persist it.
+Snapshot writer: persist full balance + expense state at the current sequence.
 
-The snapshot stores the projected balances at the highest event sequence_number
-seen so far. commit 21 will use this to skip expensive full replays.
+Stores both `balances` and `expenses` so delta replay can correctly reverse
+expense_edited and expense_deleted events without needing to re-read old events.
 """
 import uuid
 
@@ -12,17 +12,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.event import Event
 from app.models.snapshot import Snapshot
-from app.projection.naive import compute_balances
+from app.projection.naive import compute_state
 
 
 async def write_snapshot(group_id: uuid.UUID, db: AsyncSession) -> None:
-    balances = await compute_balances(group_id, db)
+    state = await compute_state(group_id, db)
 
     max_seq: int = await db.scalar(
         select(func.max(Event.sequence_number)).where(Event.group_id == group_id)
     ) or 0
-
-    state = {"balances": balances}
 
     stmt = (
         pg_insert(Snapshot)
