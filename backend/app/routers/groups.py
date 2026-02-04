@@ -12,7 +12,7 @@ from app.models.user import User
 from app.projection.delta import compute_balances
 from app.schemas.groups import GroupCreate, GroupResponse
 from app.schemas.settlement import SettlementResponse
-from app.settlement.naive import settle_pairwise
+from app.settlement.minflow import settle_minflow
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -105,5 +105,5 @@ async def get_settlement(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="group not found")
 
     balances = await compute_balances(group_id, db)
-    transactions = settle_pairwise(balances)
+    transactions = settle_minflow(balances)
     return SettlementResponse(transactions=transactions)
