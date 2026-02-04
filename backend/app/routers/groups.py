@@ -11,6 +11,8 @@ from app.models.group_member import GroupMember
 from app.models.user import User
 from app.projection.delta import compute_balances
 from app.schemas.groups import GroupCreate, GroupResponse
+from app.schemas.settlement import SettlementResponse
+from app.settlement.naive import settle_pairwise
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -85,3 +87,23 @@ async def get_balances(
 
     balances = await compute_balances(group_id, db)
     return {"balances": balances}
+
+
+@router.get("/{group_id}/settlement", response_model=SettlementResponse)
+async def get_settlement(
+    group_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    member = await db.scalar(
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == current_user.id,
+        )
+    )
+    if not member:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="group not found")
+
+    balances = await compute_balances(group_id, db)
+    transactions = settle_pairwise(balances)
+    return SettlementResponse(transactions=transactions)
