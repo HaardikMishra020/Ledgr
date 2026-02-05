@@ -14,7 +14,7 @@ from app.models.group_member import GroupMember
 from app.models.user import User
 from app.schemas.events import EventResponse
 from app.schemas.expenses import AddExpenseRequest, EditExpenseRequest, RecordPaymentRequest
-from app.ws import registry as ws_registry
+from app.ws.pubsub import publish as ws_publish
 
 router = APIRouter(prefix="/groups", tags=["expenses"])
 
@@ -50,7 +50,7 @@ def _parse_idempotency_key(raw: Optional[str]) -> Optional[uuid.UUID]:
 
 
 async def _emit(event: Event) -> None:
-    await ws_registry.broadcast(
+    await ws_publish(
         str(event.group_id),
         {"type": event.event_type, "event_id": str(event.id)},
     )
