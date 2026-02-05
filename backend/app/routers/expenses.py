@@ -14,6 +14,7 @@ from app.models.group_member import GroupMember
 from app.models.user import User
 from app.schemas.events import EventResponse
 from app.schemas.expenses import AddExpenseRequest, EditExpenseRequest, RecordPaymentRequest
+from app.ws import registry as ws_registry
 
 router = APIRouter(prefix="/groups", tags=["expenses"])
 
@@ -46,6 +47,13 @@ def _parse_idempotency_key(raw: Optional[str]) -> Optional[uuid.UUID]:
         return uuid.UUID(raw)
     except ValueError:
         raise HTTPException(status_code=400, detail="Idempotency-Key must be a valid UUID")
+
+
+async def _emit(event: Event) -> None:
+    await ws_registry.broadcast(
+        str(event.group_id),
+        {"type": event.event_type, "event_id": str(event.id)},
+    )
 
 
 @router.post("/{group_id}/expenses", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
@@ -81,6 +89,7 @@ async def add_expense(
     event = await append_event(group_id, "expense_added", payload, current_user.id, db, idem_key)
     await db.commit()
     await db.refresh(event)
+    await _emit(event)
     return event
 
 
@@ -118,6 +127,7 @@ async def edit_expense(
     event = await append_event(group_id, "expense_edited", payload, current_user.id, db, idem_key)
     await db.commit()
     await db.refresh(event)
+    await _emit(event)
     return event
 
 
@@ -136,6 +146,7 @@ async def delete_expense(
     event = await append_event(group_id, "expense_deleted", payload, current_user.id, db, idem_key)
     await db.commit()
     await db.refresh(event)
+    await _emit(event)
     return event
 
 
@@ -161,6 +172,7 @@ async def record_payment(
     event = await append_event(group_id, "payment_made", payload, current_user.id, db, idem_key)
     await db.commit()
     await db.refresh(event)
+    await _emit(event)
     return event
 
 
