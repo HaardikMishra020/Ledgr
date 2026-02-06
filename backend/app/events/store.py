@@ -1,15 +1,9 @@
 """
 Event store: the single path for appending to the events table.
 
-Uses optimistic concurrency control (OCC) via the unique constraint on
-(group_id, sequence_number). If two writers race, one gets an IntegrityError
-and retries with the next sequence number.
-
-Supports idempotency keys: duplicate submissions with the same key return the
-existing event without creating a new one.
-
-Auto-triggers a snapshot rebuild every _SNAPSHOT_INTERVAL events so the delta
-replay path (commit 21) never reads more than _SNAPSHOT_INTERVAL events.
+Each append writes event + outbox row in one flush (same DB transaction).
+The background worker in app/ws/worker.py drains pending outbox rows to Redis,
+ensuring WebSocket subscribers never miss an event even on process crash.
 """
 import uuid
 from typing import Optional
@@ -20,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.event import Event
+from app.models.outbox import EventOutbox
 
 _MAX_OCC_RETRIES = 5
 _SNAPSHOT_INTERVAL = 50
@@ -53,6 +48,7 @@ async def append_event(
                 idempotency_key=idempotency_key,
             )
             db.add(event)
+            db.add(EventOutbox(event_id=event.id))
             await db.flush()
 
             if next_seq % _SNAPSHOT_INTERVAL == 0:
