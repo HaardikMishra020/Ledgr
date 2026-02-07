@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.events.store import append_event
+from app.fx.rates import get_rate
 from app.models.event import Event
+from app.models.group import Group
 from app.models.group_member import GroupMember
 from app.models.user import User
 from app.schemas.events import EventResponse
@@ -48,6 +50,29 @@ def _parse_idempotency_key(raw: Optional[str]) -> Optional[uuid.UUID]:
         raise HTTPException(status_code=400, detail="Idempotency-Key must be a valid UUID")
 
 
+async def _build_expense_payload(
+    body: AddExpenseRequest | EditExpenseRequest,
+    expense_id: str,
+    members: list,
+    paid_by: uuid.UUID,
+    group: Group,
+    db: AsyncSession,
+) -> dict:
+    split = _equal_split(body.amount, members)
+    fx_to_default = await get_rate(body.currency, group.default_currency, db)
+    occurred = (body.occurred_at or datetime.now(timezone.utc)).isoformat()
+    return {
+        "expense_id": expense_id,
+        "amount": str(body.amount),
+        "currency": body.currency,
+        "fx_to_default": str(fx_to_default),
+        "paid_by": str(paid_by),
+        "split": split,
+        "description": body.description,
+        "occurred_at": occurred,
+    }
+
+
 @router.post("/{group_id}/expenses", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 async def add_expense(
     group_id: uuid.UUID,
@@ -58,24 +83,15 @@ async def add_expense(
 ):
     await _require_member(group_id, current_user.id, db)
 
+    group = await db.scalar(select(Group).where(Group.id == group_id))
     members = (
         await db.execute(select(GroupMember).where(GroupMember.group_id == group_id))
     ).scalars().all()
 
-    split = _equal_split(body.amount, members)
     paid_by = body.paid_by or current_user.id
-    occurred = (body.occurred_at or datetime.now(timezone.utc)).isoformat()
-
-    payload = {
-        "expense_id": str(uuid.uuid4()),
-        "amount": str(body.amount),
-        "currency": body.currency,
-        "fx_to_default": "1.0000",
-        "paid_by": str(paid_by),
-        "split": split,
-        "description": body.description,
-        "occurred_at": occurred,
-    }
+    payload = await _build_expense_payload(
+        body, str(uuid.uuid4()), members, paid_by, group, db
+    )
 
     idem_key = _parse_idempotency_key(idempotency_key_header)
     event = await append_event(group_id, "expense_added", payload, current_user.id, db, idem_key)
@@ -95,24 +111,15 @@ async def edit_expense(
 ):
     await _require_member(group_id, current_user.id, db)
 
+    group = await db.scalar(select(Group).where(Group.id == group_id))
     members = (
         await db.execute(select(GroupMember).where(GroupMember.group_id == group_id))
     ).scalars().all()
 
-    split = _equal_split(body.amount, members)
     paid_by = body.paid_by or current_user.id
-    occurred = (body.occurred_at or datetime.now(timezone.utc)).isoformat()
-
-    payload = {
-        "expense_id": expense_id,
-        "amount": str(body.amount),
-        "currency": body.currency,
-        "fx_to_default": "1.0000",
-        "paid_by": str(paid_by),
-        "split": split,
-        "description": body.description,
-        "occurred_at": occurred,
-    }
+    payload = await _build_expense_payload(
+        body, expense_id, members, paid_by, group, db
+    )
 
     idem_key = _parse_idempotency_key(idempotency_key_header)
     event = await append_event(group_id, "expense_edited", payload, current_user.id, db, idem_key)
@@ -149,12 +156,15 @@ async def record_payment(
 ):
     await _require_member(group_id, current_user.id, db)
 
+    group = await db.scalar(select(Group).where(Group.id == group_id))
+    fx_to_default = await get_rate(body.currency, group.default_currency, db)
+
     payload = {
         "from": str(current_user.id),
         "to": str(body.to_user_id),
         "amount": str(body.amount),
         "currency": body.currency,
-        "fx_to_default": "1.0000",
+        "fx_to_default": str(fx_to_default),
     }
 
     idem_key = _parse_idempotency_key(idempotency_key_header)

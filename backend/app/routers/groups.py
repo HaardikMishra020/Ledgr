@@ -85,7 +85,8 @@ async def get_balances(
     if not member:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="group not found")
 
-    balances = await compute_balances(group_id, db)
+    group = await db.scalar(select(Group).where(Group.id == group_id))
+    balances = await compute_balances(group_id, db, default_currency=group.default_currency)
     return {"balances": balances}
 
 
@@ -104,6 +105,7 @@ async def get_settlement(
     if not member:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="group not found")
 
-    balances = await compute_balances(group_id, db)
+    group = await db.scalar(select(Group).where(Group.id == group_id))
+    balances = await compute_balances(group_id, db, default_currency=group.default_currency)
     transactions = settle_minflow(balances)
     return SettlementResponse(transactions=transactions)

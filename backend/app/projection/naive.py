@@ -2,9 +2,10 @@
 Naive balance projection: full event replay on every request.
 
 Intentionally unoptimized — O(n) in event count with no caching.
-commit 21 replaces this with snapshot + delta replay.
+commit 21 replaces the balance endpoint with snapshot + delta replay.
 """
 import uuid
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,12 +14,12 @@ from app.models.event import Event
 
 
 async def compute_state(
-    group_id: uuid.UUID, db: AsyncSession
+    group_id: uuid.UUID, db: AsyncSession, default_currency: str = "USD"
 ) -> dict:
     """
     Full replay returning both projected balances AND current expense state.
-    The snapshot writer stores both so delta replay can correctly handle
-    expense_edited and expense_deleted events.
+    Balances are expressed in `default_currency` using the fx_to_default rate
+    locked into each event's payload at write time.
     """
     events = (
         await db.execute(
@@ -44,27 +45,30 @@ async def compute_state(
 
     balances: dict[str, dict[str, int]] = {}
 
-    def add(user_id: str, currency: str, amount: int) -> None:
-        balances.setdefault(user_id, {}).setdefault(currency, 0)
-        balances[user_id][currency] += amount
+    def add(user_id: str, amount: int) -> None:
+        balances.setdefault(user_id, {}).setdefault(default_currency, 0)
+        balances[user_id][default_currency] += amount
+
+    def to_default(amount_minor: int, fx: str) -> int:
+        return int(amount_minor * Decimal(fx))
 
     for expense in expenses.values():
-        currency = expense["currency"]
-        amount = int(expense["amount"])
-        add(expense["paid_by"], currency, amount)
+        fx = expense.get("fx_to_default", "1")
+        amount_default = to_default(int(expense["amount"]), fx)
+        add(expense["paid_by"], amount_default)
         for split in expense["split"]:
-            add(split["user_id"], currency, -int(split["share"]))
+            add(split["user_id"], -to_default(int(split["share"]), fx))
 
     for payment in payments:
-        currency = payment["currency"]
-        amount = int(payment["amount"])
-        add(payment["from"], currency, amount)
-        add(payment["to"], currency, -amount)
+        fx = payment.get("fx_to_default", "1")
+        amount_default = to_default(int(payment["amount"]), fx)
+        add(payment["from"], amount_default)
+        add(payment["to"], -amount_default)
 
     return {"balances": balances, "expenses": expenses}
 
 
 async def compute_balances(
-    group_id: uuid.UUID, db: AsyncSession
+    group_id: uuid.UUID, db: AsyncSession, default_currency: str = "USD"
 ) -> dict[str, dict[str, int]]:
-    return (await compute_state(group_id, db))["balances"]
+    return (await compute_state(group_id, db, default_currency))["balances"]
