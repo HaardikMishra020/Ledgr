@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
+import { useGroupSocket } from '@/hooks/useGroupSocket'
 
 interface Balances {
   [userId: string]: { [currency: string]: number }
@@ -47,16 +48,29 @@ export default function GroupDetailPage({
 
   useEffect(() => { refresh() }, [refresh])
 
+  const { connected } = useGroupSocket(groupId, refresh)
+
   const fmt = (minor: number, ccy: string) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: ccy }).format(minor / 100)
 
   return (
     <div className="max-w-lg mx-auto p-6 space-y-8">
-      <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600 text-sm">
-          ← Back
-        </button>
-        <h1 className="text-2xl font-bold">{groupName || '…'}</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600 text-sm">
+            ← Back
+          </button>
+          <h1 className="text-2xl font-bold">{groupName || '…'}</h1>
+        </div>
+        <span
+          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+            connected
+              ? 'bg-green-100 text-green-700'
+              : 'bg-gray-100 text-gray-400'
+          }`}
+        >
+          {connected ? '● live' : '○ offline'}
+        </span>
       </div>
 
       <section>
@@ -110,6 +124,14 @@ export default function GroupDetailPage({
                   <p className="text-gray-500 text-xs mt-0.5">
                     {ev.payload.description as string}
                   </p>
+                )}
+                {ev.event_type === 'expense_added' && (
+                  <a
+                    href={`/dashboard/${groupId}/edit-expense/${ev.payload.expense_id}`}
+                    className="text-xs text-indigo-500 hover:underline mt-1 inline-block"
+                  >
+                    Edit / delete
+                  </a>
                 )}
               </li>
             ))}
