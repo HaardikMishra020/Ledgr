@@ -38,7 +38,12 @@ async def append_event(
     for attempt in range(_MAX_OCC_RETRIES):
         try:
             next_seq = await _next_sequence(group_id, db)
+            # Generate the UUID here (Python-side) so EventOutbox can reference
+            # it before the flush — SQLAlchemy's default=uuid.uuid4 is only called
+            # at INSERT time, leaving event.id as None before flush.
+            event_id = uuid.uuid4()
             event = Event(
+                id=event_id,
                 group_id=group_id,
                 sequence_number=next_seq,
                 event_type=event_type,
@@ -48,7 +53,7 @@ async def append_event(
                 idempotency_key=idempotency_key,
             )
             db.add(event)
-            db.add(EventOutbox(event_id=event.id))
+            db.add(EventOutbox(event_id=event_id))
             await db.flush()
 
             if next_seq % _SNAPSHOT_INTERVAL == 0:

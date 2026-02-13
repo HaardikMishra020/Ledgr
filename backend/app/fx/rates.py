@@ -36,6 +36,8 @@ async def fetch_and_store_rates(db: AsyncSession) -> None:
     raw = await _fetch_usd_rates()
     rows = []
     for quote, rate_val in raw.items():
+        if quote == "USD":
+            continue  # skip self-pair — get_rate handles base==quote without DB
         rate = Decimal(str(rate_val))
         rows.append(FxRate(base="USD", quote=quote, rate=rate, as_of=today))
         if rate != 0:
@@ -84,7 +86,6 @@ async def _fetch_usd_rates() -> dict[str, float]:
 
 def _stub_rates() -> dict[str, float]:
     return {
-        "USD": 1.0,
         "EUR": 0.9150,
         "GBP": 0.7850,
         "INR": 83.12,
