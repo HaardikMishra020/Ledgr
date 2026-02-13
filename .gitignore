@@ -12,6 +12,8 @@ venv/
 node_modules/
 .next/
 .vercel/
+.env.local
+frontend/next-env.d.ts
 
 # IDE
 .vscode/
