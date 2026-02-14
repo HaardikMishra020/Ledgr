@@ -1,9 +1,5 @@
 """
-Snapshot + delta replay projection.
-
-Hot path: load snapshot → replay only events with sequence_number > snapshot.up_to_sequence.
-Falls back to full replay when no snapshot exists. Balances are expressed in
-the group's default currency using the fx_to_default rate locked at write time.
+Snapshot + delta replay projection. O(1) in total event history.
 """
 import uuid
 from decimal import Decimal
@@ -56,6 +52,15 @@ async def compute_balances(
         for s in expense["split"]:
             add(s["user_id"], -to_default(int(s["share"]), fx) * sign)
 
+    def apply_payment(payment: dict) -> None:
+        fx = payment.get("fx_to_default", "1")
+        amt = to_default(int(payment["amount"]), fx)
+        add(payment["from"], amt)
+        add(payment["to"], -amt)
+
+    # Track pending payments in the delta window
+    pending: dict[str, dict] = {}
+
     for event in delta:
         p = event.payload
         if event.event_type == "expense_added":
@@ -71,9 +76,17 @@ async def compute_balances(
                 apply_expense(expenses[p["expense_id"]], -1)
                 del expenses[p["expense_id"]]
         elif event.event_type == "payment_made":
-            fx = p.get("fx_to_default", "1")
-            amt = to_default(int(p["amount"]), fx)
-            add(p["from"], amt)
-            add(p["to"], -amt)
+            apply_payment(p)
+        elif event.event_type == "payment_initiated":
+            pending[p["payment_id"]] = p
+        elif event.event_type == "payment_confirmed":
+            payment = pending.pop(p["payment_id"], None)
+            if payment:
+                apply_payment(payment)
+            else:
+                # Confirmed event whose initiated event is before the snapshot
+                # The snapshot balances already exclude pending payments,
+                # so we apply it directly from the confirmed payload
+                apply_payment(p)
 
     return balances

@@ -1,10 +1,6 @@
 """
 FX rate fetcher and daily job.
-
-Fetches from open.er-api.com (free, no API key). Falls back to hardcoded stub
-rates if the API is unavailable so the service stays up during network issues.
-Stores both (base→quote) and (quote→base) rows so expense handlers can look up
-any direction in one query.
+Uses on_conflict_do_nothing so the job is safe to run on every restart.
 """
 import asyncio
 import logging
@@ -13,6 +9,7 @@ from decimal import Decimal
 
 import httpx
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import AsyncSessionLocal
@@ -26,27 +23,21 @@ _FETCH_URL = "https://open.er-api.com/v6/latest/USD"
 
 async def fetch_and_store_rates(db: AsyncSession) -> None:
     today = date.today()
-
-    existing = await db.scalar(
-        select(FxRate).where(FxRate.base == "USD", FxRate.as_of == today)
-    )
-    if existing:
-        return
-
     raw = await _fetch_usd_rates()
     rows = []
     for quote, rate_val in raw.items():
         if quote == "USD":
-            continue  # skip self-pair — get_rate handles base==quote without DB
+            continue
         rate = Decimal(str(rate_val))
-        rows.append(FxRate(base="USD", quote=quote, rate=rate, as_of=today))
+        rows.append({"base": "USD", "quote": quote, "rate": rate, "as_of": today})
         if rate != 0:
-            rows.append(FxRate(base=quote, quote="USD", rate=Decimal("1") / rate, as_of=today))
+            rows.append({"base": quote, "quote": "USD", "rate": Decimal("1") / rate, "as_of": today})
 
-    for row in rows:
-        db.add(row)
-    await db.commit()
-    logger.info("fx rates stored for %s (%d pairs)", today, len(rows))
+    if rows:
+        stmt = pg_insert(FxRate).values(rows).on_conflict_do_nothing()
+        await db.execute(stmt)
+        await db.commit()
+        logger.info("fx rates stored for %s (%d pairs)", today, len(rows))
 
 
 async def get_rate(base: str, quote: str, db: AsyncSession) -> Decimal:

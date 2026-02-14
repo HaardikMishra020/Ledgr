@@ -19,6 +19,9 @@ class Invite(Base):
         ForeignKey("groups.id", ondelete="CASCADE"),
         nullable=False,
     )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
     token_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False

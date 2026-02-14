@@ -1,7 +1,5 @@
 """
 Naive balance projection: full event replay on every request.
-
-Intentionally unoptimized — O(n) in event count with no caching.
 commit 21 replaces the balance endpoint with snapshot + delta replay.
 """
 import uuid
@@ -16,11 +14,6 @@ from app.models.event import Event
 async def compute_state(
     group_id: uuid.UUID, db: AsyncSession, default_currency: str = "USD"
 ) -> dict:
-    """
-    Full replay returning both projected balances AND current expense state.
-    Balances are expressed in `default_currency` using the fx_to_default rate
-    locked into each event's payload at write time.
-    """
     events = (
         await db.execute(
             select(Event)
@@ -30,7 +23,9 @@ async def compute_state(
     ).scalars().all()
 
     expenses: dict[str, dict] = {}
-    payments: list[dict] = []
+    confirmed_payments: list[dict] = []
+    # Track initiated-but-unconfirmed payments so delta replay can reverse if needed
+    pending_payments: dict[str, dict] = {}
 
     for event in events:
         p = event.payload
@@ -41,7 +36,14 @@ async def compute_state(
         elif event.event_type == "expense_deleted":
             expenses.pop(p["expense_id"], None)
         elif event.event_type == "payment_made":
-            payments.append(p)
+            # Legacy direct payment — immediately affects balance
+            confirmed_payments.append(p)
+        elif event.event_type == "payment_initiated":
+            pending_payments[p["payment_id"]] = p
+        elif event.event_type == "payment_confirmed":
+            payment = pending_payments.pop(p["payment_id"], None)
+            if payment:
+                confirmed_payments.append(payment)
 
     balances: dict[str, dict[str, int]] = {}
 
@@ -59,7 +61,7 @@ async def compute_state(
         for split in expense["split"]:
             add(split["user_id"], -to_default(int(split["share"]), fx))
 
-    for payment in payments:
+    for payment in confirmed_payments:
         fx = payment.get("fx_to_default", "1")
         amount_default = to_default(int(payment["amount"]), fx)
         add(payment["from"], amount_default)

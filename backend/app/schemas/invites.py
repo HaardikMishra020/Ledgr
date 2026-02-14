@@ -13,3 +13,11 @@ class InviteResponse(BaseModel):
     group_id: uuid.UUID
     token: str
     expires_at: datetime
+
+
+class InviteInfoResponse(BaseModel):
+    group_id: uuid.UUID
+    group_name: str
+    invited_by: str
+    expires_at: datetime
+    already_accepted: bool
