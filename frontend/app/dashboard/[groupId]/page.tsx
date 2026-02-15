@@ -20,14 +20,24 @@ const EVENT_LABELS: Record<string, string> = {
   payment_initiated: 'Payment initiated', payment_confirmed: 'Payment confirmed',
 }
 
+function fmtAmount(minor: number, ccy: string): string {
+  try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: ccy }).format(minor / 100) }
+  catch { return `${minor / 100} ${ccy}` }
+}
+
 function amountLabel(ev: EventItem): string {
   const p = ev.payload
   if (!p.amount || !p.currency) return ''
-  const minor = Number(p.amount)
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: p.currency as string })
-      .format(minor / 100)
-  } catch { return `${minor / 100} ${p.currency}` }
+  return fmtAmount(Number(p.amount), p.currency as string)
+}
+
+function paymentLine(ev: EventItem, memberMap: Record<string, string>): string | null {
+  if (!['payment_initiated', 'payment_confirmed', 'payment_made'].includes(ev.event_type)) return null
+  const p = ev.payload
+  const from = memberMap[p.from as string] ?? (p.from as string)?.slice(0, 8)
+  const to   = memberMap[p.to   as string] ?? (p.to   as string)?.slice(0, 8)
+  const amt  = fmtAmount(Number(p.amount), p.currency as string)
+  return `${from} → ${to}: ${amt}`
 }
 
 export default function GroupDetailPage({ params }: { params: { groupId: string } }) {
@@ -116,10 +126,7 @@ export default function GroupDetailPage({ params }: { params: { groupId: string 
     refresh()
   }
 
-  const fmt = (minor: number, ccy: string) => {
-    try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: ccy }).format(minor / 100) }
-    catch { return `${minor / 100} ${ccy}` }
-  }
+  const fmt = fmtAmount
 
   return (
     <div className="max-w-lg mx-auto p-6 space-y-8">
@@ -321,6 +328,7 @@ export default function GroupDetailPage({ params }: { params: { groupId: string 
           <ul className="space-y-2">
             {events.map(ev => {
               const label = amountLabel(ev)
+              const pyLine = paymentLine(ev, memberMap)
               return (
                 <li key={ev.id} className="px-3 py-2 bg-white rounded border text-sm">
                   <div className="flex justify-between">
@@ -329,7 +337,10 @@ export default function GroupDetailPage({ params }: { params: { groupId: string 
                   </div>
                   <div className="text-gray-500 text-xs mt-0.5 flex gap-2">
                     {ev.payload.description && <span>{ev.payload.description as string}</span>}
-                    {label && <span className="font-medium text-gray-700">{label}</span>}
+                    {pyLine
+                      ? <span className="font-medium text-gray-700">{pyLine}</span>
+                      : label && <span className="font-medium text-gray-700">{label}</span>
+                    }
                   </div>
                   {ev.event_type === 'expense_added' && (
                     <a href={`/dashboard/${groupId}/edit-expense/${ev.payload.expense_id}`}
