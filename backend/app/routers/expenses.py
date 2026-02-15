@@ -58,7 +58,17 @@ async def _build_expense_payload(
     group: Group,
     db: AsyncSession,
 ) -> dict:
-    split = _equal_split(body.amount, members)
+    if body.split is not None:
+        total_shares = sum(s.share for s in body.split)
+        if total_shares != body.amount:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"split shares sum to {total_shares} but expense amount is {body.amount}",
+            )
+        split = [{"user_id": str(s.user_id), "share": str(s.share)} for s in body.split]
+    else:
+        split = _equal_split(body.amount, members)
+
     fx_to_default = await get_rate(body.currency, group.default_currency, db)
     occurred = (body.occurred_at or datetime.now(timezone.utc)).isoformat()
     return {
