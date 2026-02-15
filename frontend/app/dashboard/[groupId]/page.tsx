@@ -45,6 +45,9 @@ export default function GroupDetailPage({ params }: { params: { groupId: string 
   const [inviteLink, setInviteLink] = useState('')
   const [copied, setCopied] = useState(false)
   const [archiving, setArchiving] = useState(false)
+  const [payDialog, setPayDialog] = useState<{
+    toUser: string; maxMinor: number; currency: string; input: string
+  } | null>(null)
 
   const refresh = useCallback(() => {
     apiFetch('/auth/me').then(r => r.json()).then(u => setCurrentUserId(u.id))
@@ -79,11 +82,24 @@ export default function GroupDetailPage({ params }: { params: { groupId: string 
     setCopied(true); setTimeout(() => setCopied(false), 2000)
   }
 
-  async function markPaid(tx: Transaction) {
+  function openPayDialog(tx: Transaction) {
+    setPayDialog({
+      toUser: tx.to_user,
+      maxMinor: tx.amount,
+      currency: tx.currency,
+      input: (tx.amount / 100).toFixed(2),
+    })
+  }
+
+  async function confirmPayment() {
+    if (!payDialog) return
+    const amountMinor = Math.round(parseFloat(payDialog.input) * 100)
+    if (isNaN(amountMinor) || amountMinor <= 0) return
     await apiFetch(`/groups/${groupId}/payments/initiate`, {
       method: 'POST',
-      body: JSON.stringify({ to_user_id: tx.to_user, amount: tx.amount, currency: tx.currency }),
+      body: JSON.stringify({ to_user_id: payDialog.toUser, amount: amountMinor, currency: payDialog.currency }),
     })
+    setPayDialog(null)
     refresh()
   }
 
@@ -190,24 +206,59 @@ export default function GroupDetailPage({ params }: { params: { groupId: string 
             {settlement.map((tx, i) => {
               const isMe = tx.from_user === currentUserId
               const isPending = pendingPayments.some(p => p.from === tx.from_user && p.to === tx.to_user)
+              const isDialogOpen = payDialog?.toUser === tx.to_user && isMe
               return (
-                <li key={i} className="flex justify-between items-center px-3 py-2 bg-white rounded border text-sm">
-                  <span>
-                    <span className={isMe ? 'font-semibold text-red-600' : 'text-gray-700'}>
-                      {memberMap[tx.from_user] ?? tx.from_user.slice(0, 8)}
+                <li key={i} className="bg-white rounded border text-sm overflow-hidden">
+                  <div className="flex justify-between items-center px-3 py-2">
+                    <span>
+                      <span className={isMe ? 'font-semibold text-red-600' : 'text-gray-700'}>
+                        {memberMap[tx.from_user] ?? tx.from_user.slice(0, 8)}
+                      </span>
+                      <span className="text-gray-400 mx-1.5">→</span>
+                      <span className="text-gray-700">{memberMap[tx.to_user] ?? tx.to_user.slice(0, 8)}</span>
+                      <span className="ml-2 font-medium">{fmt(tx.amount, tx.currency)}</span>
                     </span>
-                    <span className="text-gray-400 mx-1.5">→</span>
-                    <span className="text-gray-700">{memberMap[tx.to_user] ?? tx.to_user.slice(0, 8)}</span>
-                    <span className="ml-2 font-medium">{fmt(tx.amount, tx.currency)}</span>
-                  </span>
-                  {isMe && groupStatus === 'active' && (
-                    <button
-                      onClick={() => markPaid(tx)}
-                      disabled={isPending}
-                      className="text-xs bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white px-2 py-1 rounded"
-                    >
-                      {isPending ? 'Awaiting confirmation' : 'Mark paid'}
-                    </button>
+                    {isMe && groupStatus === 'active' && (
+                      isPending ? (
+                        <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded">
+                          Awaiting confirmation
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => isDialogOpen ? setPayDialog(null) : openPayDialog(tx)}
+                          className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded"
+                        >
+                          {isDialogOpen ? 'Cancel' : 'Mark paid'}
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  {/* Inline partial payment form */}
+                  {isDialogOpen && payDialog && (
+                    <div className="px-3 pb-3 pt-1 border-t bg-amber-50 flex items-end gap-3">
+                      <div className="flex-1">
+                        <label className="block text-xs text-gray-500 mb-1">
+                          Amount to pay (max {fmt(payDialog.maxMinor, payDialog.currency)})
+                        </label>
+                        <input
+                          type="number"
+                          value={payDialog.input}
+                          onChange={e => setPayDialog({ ...payDialog, input: e.target.value })}
+                          step="0.01"
+                          min="0.01"
+                          className="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          autoFocus
+                        />
+                      </div>
+                      <span className="text-sm text-gray-500 mb-1.5">{payDialog.currency}</span>
+                      <button
+                        onClick={confirmPayment}
+                        className="mb-0.5 bg-amber-500 hover:bg-amber-600 text-white text-xs px-3 py-2 rounded font-medium"
+                      >
+                        Confirm
+                      </button>
+                    </div>
                   )}
                 </li>
               )

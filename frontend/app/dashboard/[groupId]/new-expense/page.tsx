@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 
@@ -18,6 +18,12 @@ export default function NewExpensePage({
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
+  useEffect(() => {
+    apiFetch(`/groups/${groupId}`)
+      .then(r => r.json())
+      .then(g => setCurrency(g.default_currency ?? 'USD'))
+  }, [groupId])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const amountMinor = Math.round(parseFloat(amount) * 100)
@@ -32,10 +38,7 @@ export default function NewExpensePage({
       body: JSON.stringify({ description, amount: amountMinor, currency }),
     })
     setSaving(false)
-    if (!res.ok) {
-      setError('Failed to add expense')
-      return
-    }
+    if (!res.ok) { setError('Failed to add expense'); return }
     router.push(`/dashboard/${groupId}`)
   }
 
@@ -90,9 +93,7 @@ export default function NewExpensePage({
             </select>
           </div>
         </div>
-        <p className="text-xs text-gray-400">
-          Amount will be split equally among all group members.
-        </p>
+        <p className="text-xs text-gray-400">Amount will be split equally among all group members.</p>
         <button
           type="submit"
           disabled={saving}

@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 
@@ -15,9 +15,38 @@ export default function EditExpensePage({
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState('USD')
+  const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    // Fetch group for default currency fallback
+    apiFetch(`/groups/${groupId}`)
+      .then(r => r.json())
+      .then(g => {
+        // Only apply group currency if no activity data pre-populated it yet
+        if (!loaded) setCurrency(g.default_currency ?? 'USD')
+      })
+
+    // Fetch activity to find current state of this expense
+    apiFetch(`/groups/${groupId}/activity?limit=200`)
+      .then(r => r.json())
+      .then((events: { event_type: string; payload: Record<string, unknown> }[]) => {
+        const relevant = events.filter(
+          ev =>
+            (ev.event_type === 'expense_added' || ev.event_type === 'expense_edited') &&
+            ev.payload.expense_id === expenseId
+        )
+        const latest = relevant[relevant.length - 1]
+        if (latest) {
+          setDescription((latest.payload.description as string) ?? '')
+          setAmount(String(Number(latest.payload.amount) / 100))
+          setCurrency((latest.payload.currency as string) ?? 'USD')
+          setLoaded(true)
+        }
+      })
+  }, [groupId, expenseId, loaded])
 
   async function handleEdit(e: React.FormEvent) {
     e.preventDefault()
@@ -38,7 +67,7 @@ export default function EditExpensePage({
   }
 
   async function handleDelete() {
-    if (!confirm('Delete this expense? This appends a deletion event.')) return
+    if (!confirm('Delete this expense? This appends a deletion event — the original is preserved.')) return
     setDeleting(true)
     await apiFetch(`/groups/${groupId}/expenses/${expenseId}`, { method: 'DELETE' })
     setDeleting(false)
@@ -54,8 +83,8 @@ export default function EditExpensePage({
         <h1 className="text-xl font-bold">Edit expense</h1>
       </div>
 
-      <p className="text-xs text-gray-400 mb-4 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-        Editing appends a new <code>expense_edited</code> event — the original is preserved.
+      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
+        Editing appends a new <code>expense_edited</code> event — the original is preserved in history.
       </p>
 
       {error && (
@@ -65,31 +94,40 @@ export default function EditExpensePage({
       )}
 
       <form onSubmit={handleEdit} className="space-y-4">
-        <input
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          placeholder="Description"
-          className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          required
-        />
-        <div className="flex gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
           <input
-            type="number"
-            value={amount}
-            onChange={e => setAmount(e.target.value)}
-            placeholder="Amount"
-            step="0.01"
-            min="0.01"
-            className="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder="Description"
+            className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             required
           />
-          <select
-            value={currency}
-            onChange={e => setCurrency(e.target.value)}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {CURRENCIES.map(c => <option key={c}>{c}</option>)}
-          </select>
+        </div>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+            <input
+              type="number"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="0.00"
+              step="0.01"
+              min="0.01"
+              className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+            <select
+              value={currency}
+              onChange={e => setCurrency(e.target.value)}
+              className="border rounded px-3 py-2 text-sm"
+            >
+              {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+            </select>
+          </div>
         </div>
         <button
           type="submit"
