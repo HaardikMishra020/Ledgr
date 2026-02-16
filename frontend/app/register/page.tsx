@@ -1,12 +1,15 @@
 'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { setTokens } from '@/lib/auth'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next') ?? '/dashboard'
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -34,7 +37,7 @@ export default function RegisterPage() {
 
     const { access_token, refresh_token } = await res.json()
     setTokens(access_token, refresh_token)
-    router.push('/dashboard')
+    router.push(next)
   }
 
   return (
@@ -83,11 +86,19 @@ export default function RegisterPage() {
         </form>
         <p className="text-center text-sm text-gray-500">
           Already have an account?{' '}
-          <a href="/login" className="text-indigo-600 hover:underline">
+          <a href={`/login${next !== '/dashboard' ? `?next=${next}` : ''}`} className="text-indigo-600 hover:underline">
             Sign in
           </a>
         </p>
       </div>
     </main>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   )
 }
