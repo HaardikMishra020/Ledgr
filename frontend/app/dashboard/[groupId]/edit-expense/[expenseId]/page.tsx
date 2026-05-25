@@ -2,15 +2,15 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
+import { fmtAmount } from '@/lib/fmt'
+import { Button } from '@/components/ui/button'
+import { Card, CardBody, CardDivider } from '@/components/ui/card'
+import { Avatar } from '@/components/ui/avatar'
+import { PageHeader } from '@/components/layout/top-nav'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'JPY', 'CAD', 'AUD']
 
 interface Member { user_id: string; display_name: string }
-
-function fmtCurrency(minor: number, ccy: string): string {
-  try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: ccy }).format(minor / 100) }
-  catch { return `${minor / 100} ${ccy}` }
-}
 
 export default function EditExpensePage({
   params,
@@ -22,38 +22,33 @@ export default function EditExpensePage({
 
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
-  const [currency, setCurrency] = useState('USD')
+  const [currency, setCurrency] = useState('INR')
   const [members, setMembers] = useState<Member[]>([])
   const [splitMode, setSplitMode] = useState<'equal' | 'custom'>('equal')
   const [customAmounts, setCustomAmounts] = useState<string[]>([])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
-    // Load group currency + members
-    apiFetch(`/groups/${groupId}`).then(r => r.json()).then(g => setCurrency(g.default_currency ?? 'USD'))
-
+    apiFetch(`/groups/${groupId}`).then(r => r.json()).then(g => setCurrency(g.default_currency ?? 'INR'))
     apiFetch(`/groups/${groupId}/members`).then(r => r.json()).then((ms: Member[]) => {
       setMembers(ms)
       setCustomAmounts(ms.map(() => ''))
     })
-
-    // Load current expense state from activity
     apiFetch(`/groups/${groupId}/activity?limit=200`).then(r => r.json())
       .then((events: { event_type: string; payload: Record<string, unknown> }[]) => {
         const relevant = events.filter(
-          ev => (ev.event_type === 'expense_added' || ev.event_type === 'expense_edited')
-            && ev.payload.expense_id === expenseId
+          ev =>
+            (ev.event_type === 'expense_added' || ev.event_type === 'expense_edited') &&
+            ev.payload.expense_id === expenseId
         )
         const latest = relevant[relevant.length - 1]
         if (!latest) return
-
         setDescription((latest.payload.description as string) ?? '')
         setAmount(String(Number(latest.payload.amount) / 100))
-        setCurrency((latest.payload.currency as string) ?? 'USD')
-
-        // Pre-populate custom split if the existing split is non-equal
+        setCurrency((latest.payload.currency as string) ?? 'INR')
         const existingSplit = latest.payload.split as { user_id: string; share: string }[] | undefined
         if (existingSplit && existingSplit.length > 0) {
           const n = existingSplit.length
@@ -91,13 +86,15 @@ export default function EditExpensePage({
     e.preventDefault()
     if (isNaN(amountMinor) || amountMinor <= 0) { setError('Enter a valid amount'); return }
     if (splitMode === 'custom' && remaining !== 0) {
-      setError(`Split must equal the total. ${remaining > 0 ? `Remaining: ${fmtCurrency(remaining, currency)}` : `Over by: ${fmtCurrency(-remaining, currency)}`}`)
+      setError(
+        remaining > 0
+          ? `Remaining to assign: ${fmtAmount(remaining, currency)}`
+          : `Over by: ${fmtAmount(-remaining, currency)}`
+      )
       return
     }
-
     setSaving(true)
     setError('')
-
     const body: Record<string, unknown> = { description, amount: amountMinor, currency }
     if (splitMode === 'custom') {
       body.split = members.map((m, i) => ({
@@ -105,7 +102,6 @@ export default function EditExpensePage({
         share: Math.round(parseFloat(customAmounts[i] || '0') * 100),
       }))
     }
-
     const res = await apiFetch(`/groups/${groupId}/expenses/${expenseId}`, {
       method: 'PUT',
       body: JSON.stringify(body),
@@ -116,107 +112,200 @@ export default function EditExpensePage({
   }
 
   async function handleDelete() {
-    if (!confirm('Delete this expense? This appends a deletion event — the original is preserved in history.')) return
     setDeleting(true)
     await apiFetch(`/groups/${groupId}/expenses/${expenseId}`, { method: 'DELETE' })
     setDeleting(false)
     router.push(`/dashboard/${groupId}`)
   }
 
+  const perPerson = members.length > 0 && amountMinor > 0
+    ? fmtAmount(Math.floor(amountMinor / members.length), currency)
+    : null
+
   return (
-    <div className="max-w-sm mx-auto p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600 text-sm">← Back</button>
-        <h1 className="text-xl font-bold">Edit expense</h1>
-      </div>
+    <div className="min-h-screen bg-surface">
+      <PageHeader
+        title="Edit expense"
+        onBack={() => router.back()}
+      />
 
-      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
-        Editing appends a new <code>expense_edited</code> event — the original is preserved in history.
-      </p>
-
-      {error && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mb-4">{error}</p>
-      )}
-
-      <form onSubmit={handleEdit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-          <input value={description} onChange={e => setDescription(e.target.value)}
-            placeholder="Description"
-            className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            required />
+      <div className="max-w-xl mx-auto px-4 sm:px-container py-8 space-y-5">
+        {/* Event-sourcing notice */}
+        <div className="px-4 py-3 bg-surface-low border border-outline-variant rounded-lg text-xs text-on-surface-muted">
+          Editing appends a new <code className="font-mono bg-surface-variant px-1 py-0.5 rounded">expense_edited</code> event. The original is preserved in history.
         </div>
 
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-            <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
-              placeholder="0.00" step="0.01" min="0.01"
-              className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              required />
+        {error && (
+          <div className="px-4 py-3 bg-owing-bg border border-owing-border rounded-lg text-sm text-owing-dim">
+            {error}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
-            <select value={currency} onChange={e => setCurrency(e.target.value)}
-              className="border rounded px-3 py-2 text-sm">
-              {CURRENCIES.map(c => <option key={c}>{c}</option>)}
-            </select>
-          </div>
-        </div>
+        )}
 
-        {/* Split mode toggle */}
-        <div>
-          <div className="flex gap-2 mb-3">
-            <button type="button" onClick={() => setSplitMode('equal')}
-              className={`text-xs px-3 py-1.5 rounded border font-medium ${splitMode === 'equal' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-              Equal split
-            </button>
-            <button type="button" onClick={switchToCustom}
-              className={`text-xs px-3 py-1.5 rounded border font-medium ${splitMode === 'custom' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-              Custom split
-            </button>
-          </div>
-
-          {splitMode === 'equal' && members.length > 0 && amountMinor > 0 && (
-            <p className="text-xs text-gray-400">
-              {fmtCurrency(Math.floor(amountMinor / members.length), currency)} per person ({members.length} members)
-            </p>
-          )}
-
-          {splitMode === 'custom' && members.length > 0 && (
-            <div className="space-y-2">
-              {members.map((m, i) => (
-                <div key={m.user_id} className="flex items-center gap-2">
-                  <span className="flex-1 text-sm text-gray-700 truncate">{m.display_name}</span>
-                  <input type="number" value={customAmounts[i] ?? ''}
-                    onChange={e => setCustomAmount(i, e.target.value)}
-                    step="0.01" min="0" placeholder="0.00"
-                    className="w-24 border rounded px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                  <span className="text-xs text-gray-400 w-8">{currency}</span>
+        <Card>
+          <CardBody className="space-y-5">
+            {/* Amount */}
+            <div>
+              <label className="section-label block mb-2">Amount</label>
+              <div className="flex gap-3 items-start">
+                <div className="flex-1">
+                  <input
+                    type="number"
+                    value={amount}
+                    onChange={e => setAmount(e.target.value)}
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0.01"
+                    className="input-base text-subheading font-semibold"
+                    required
+                  />
                 </div>
-              ))}
-              <div className={`text-xs font-medium pt-1 border-t ${remaining === 0 ? 'text-green-600' : remaining > 0 ? 'text-amber-600' : 'text-red-600'}`}>
-                {remaining === 0
-                  ? '✓ Splits match total'
-                  : remaining > 0
-                    ? `Remaining: ${fmtCurrency(remaining, currency)}`
-                    : `Over by: ${fmtCurrency(-remaining, currency)}`}
+                <select
+                  value={currency}
+                  onChange={e => setCurrency(e.target.value)}
+                  className="input-base w-24 shrink-0"
+                >
+                  {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+                </select>
               </div>
             </div>
+
+            {/* Description */}
+            <div>
+              <label className="section-label block mb-2">Description</label>
+              <input
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="Description"
+                className="input-base"
+                required
+              />
+            </div>
+          </CardBody>
+
+          <CardDivider />
+
+          {/* Split mode */}
+          <CardBody className="space-y-4">
+            <div>
+              <p className="section-label mb-3">Split</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSplitMode('equal')}
+                  className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-all ${
+                    splitMode === 'equal'
+                      ? 'bg-primary text-white border-primary'
+                      : 'border-outline-variant text-on-surface-muted hover:bg-surface-low'
+                  }`}
+                >
+                  Equal
+                </button>
+                <button
+                  type="button"
+                  onClick={switchToCustom}
+                  className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-all ${
+                    splitMode === 'custom'
+                      ? 'bg-primary text-white border-primary'
+                      : 'border-outline-variant text-on-surface-muted hover:bg-surface-low'
+                  }`}
+                >
+                  Custom
+                </button>
+              </div>
+            </div>
+
+            {splitMode === 'equal' && perPerson && (
+              <div className="px-4 py-3 bg-surface-low rounded-lg border border-outline-variant">
+                <p className="text-sm text-on-surface-muted">
+                  <span className="font-semibold text-on-surface">{perPerson}</span>
+                  {' '}per person ({members.length} members)
+                </p>
+              </div>
+            )}
+
+            {splitMode === 'custom' && members.length > 0 && (
+              <div className="space-y-3">
+                {members.map((m, i) => (
+                  <div key={m.user_id} className="flex items-center gap-3">
+                    <Avatar name={m.display_name} size="sm" />
+                    <span className="flex-1 text-sm text-on-surface truncate">{m.display_name}</span>
+                    <input
+                      type="number"
+                      value={customAmounts[i] ?? ''}
+                      onChange={e => setCustomAmount(i, e.target.value)}
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      className="input-base w-28 text-right"
+                    />
+                    <span className="text-xs text-on-surface-muted w-8 shrink-0">{currency}</span>
+                  </div>
+                ))}
+                <div className={`flex items-center gap-2 px-3 py-2 rounded text-xs font-semibold border ${
+                  remaining === 0
+                    ? 'bg-owed-bg border-owed-border text-owed-dim'
+                    : 'bg-owing-bg border-owing-border text-owing-dim'
+                }`}>
+                  {remaining === 0
+                    ? '✓ Splits match total'
+                    : remaining > 0
+                      ? `Remaining: ${fmtAmount(remaining, currency)}`
+                      : `Over by: ${fmtAmount(-remaining, currency)}`}
+                </div>
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
+        <form onSubmit={handleEdit} className="space-y-3">
+          <Button
+            type="submit"
+            loading={saving}
+            fullWidth
+            size="lg"
+            disabled={splitMode === 'custom' && remaining !== 0}
+          >
+            Save changes
+          </Button>
+
+          {/* Delete — two-step confirm */}
+          {!confirmDelete ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="w-full text-center text-sm text-on-surface-muted hover:text-owing transition-colors py-2"
+            >
+              Delete expense
+            </button>
+          ) : (
+            <Card>
+              <CardBody className="space-y-3">
+                <p className="text-sm text-on-surface">
+                  Delete this expense? A <code className="font-mono bg-surface-variant px-1 py-0.5 rounded text-xs">expense_deleted</code> event will be appended — the original is preserved.
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="md"
+                    loading={deleting}
+                    onClick={handleDelete}
+                  >
+                    Yes, delete
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
           )}
-        </div>
-
-        <button type="submit" disabled={saving || (splitMode === 'custom' && remaining !== 0)}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded py-2 text-sm font-medium">
-          {saving ? 'Saving…' : 'Save changes'}
-        </button>
-      </form>
-
-      <div className="mt-4 pt-4 border-t">
-        <button onClick={handleDelete} disabled={deleting}
-          className="w-full text-red-600 hover:bg-red-50 border border-red-200 rounded py-2 text-sm font-medium disabled:opacity-50">
-          {deleting ? 'Deleting…' : 'Delete expense'}
-        </button>
+        </form>
       </div>
     </div>
   )

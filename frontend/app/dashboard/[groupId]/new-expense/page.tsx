@@ -2,15 +2,15 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
+import { fmtAmount } from '@/lib/fmt'
+import { Button } from '@/components/ui/button'
+import { Card, CardBody, CardDivider } from '@/components/ui/card'
+import { Avatar } from '@/components/ui/avatar'
+import { PageHeader } from '@/components/layout/top-nav'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'JPY', 'CAD', 'AUD']
 
 interface Member { user_id: string; display_name: string }
-
-function fmtCurrency(minor: number, ccy: string): string {
-  try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: ccy }).format(minor / 100) }
-  catch { return `${minor / 100} ${ccy}` }
-}
 
 export default function NewExpensePage({ params }: { params: { groupId: string } }) {
   const { groupId } = params
@@ -18,7 +18,7 @@ export default function NewExpensePage({ params }: { params: { groupId: string }
 
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
-  const [currency, setCurrency] = useState('USD')
+  const [currency, setCurrency] = useState('INR')
   const [members, setMembers] = useState<Member[]>([])
   const [splitMode, setSplitMode] = useState<'equal' | 'custom'>('equal')
   const [customAmounts, setCustomAmounts] = useState<string[]>([])
@@ -27,7 +27,7 @@ export default function NewExpensePage({ params }: { params: { groupId: string }
 
   useEffect(() => {
     apiFetch(`/groups/${groupId}`)
-      .then(r => r.json()).then(g => setCurrency(g.default_currency ?? 'USD'))
+      .then(r => r.json()).then(g => setCurrency(g.default_currency ?? 'INR'))
     apiFetch(`/groups/${groupId}/members`)
       .then(r => r.json()).then((ms: Member[]) => {
         setMembers(ms)
@@ -55,17 +55,16 @@ export default function NewExpensePage({ params }: { params: { groupId: string }
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (isNaN(amountMinor) || amountMinor <= 0) { setError('Enter a valid amount'); return }
-
-    if (splitMode === 'custom') {
-      if (remaining !== 0) {
-        setError(`Split must equal the total. ${remaining > 0 ? `Remaining: ${fmtCurrency(remaining, currency)}` : `Over by: ${fmtCurrency(-remaining, currency)}`}`)
-        return
-      }
+    if (splitMode === 'custom' && remaining !== 0) {
+      setError(
+        remaining > 0
+          ? `Remaining to assign: ${fmtAmount(remaining, currency)}`
+          : `Over by: ${fmtAmount(-remaining, currency)}`
+      )
+      return
     }
-
     setSaving(true)
     setError('')
-
     const body: Record<string, unknown> = { description, amount: amountMinor, currency }
     if (splitMode === 'custom') {
       body.split = members.map((m, i) => ({
@@ -73,100 +72,161 @@ export default function NewExpensePage({ params }: { params: { groupId: string }
         share: Math.round(parseFloat(customAmounts[i] || '0') * 100),
       }))
     }
-
     const res = await apiFetch(`/groups/${groupId}/expenses`, { method: 'POST', body: JSON.stringify(body) })
     setSaving(false)
     if (!res.ok) { setError('Failed to add expense'); return }
     router.push(`/dashboard/${groupId}`)
   }
 
+  const perPerson = members.length > 0 && amountMinor > 0
+    ? fmtAmount(Math.floor(amountMinor / members.length), currency)
+    : null
+
   return (
-    <div className="max-w-sm mx-auto p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600 text-sm">← Back</button>
-        <h1 className="text-xl font-bold">Add expense</h1>
-      </div>
+    <div className="min-h-screen bg-surface">
+      <PageHeader
+        title="Add expense"
+        onBack={() => router.back()}
+      />
 
-      {error && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mb-4">{error}</p>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-          <input value={description} onChange={e => setDescription(e.target.value)}
-            placeholder="e.g. Dinner"
-            className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            required />
-        </div>
-
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-            <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
-              placeholder="0.00" step="0.01" min="0.01"
-              className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              required />
+      <div className="max-w-xl mx-auto px-4 sm:px-container py-8 space-y-5">
+        {error && (
+          <div className="px-4 py-3 bg-owing-bg border border-owing-border rounded-lg text-sm text-owing-dim">
+            {error}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
-            <select value={currency} onChange={e => setCurrency(e.target.value)}
-              className="border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              {CURRENCIES.map(c => <option key={c}>{c}</option>)}
-            </select>
-          </div>
-        </div>
+        )}
 
-        {/* Split mode toggle */}
-        <div>
-          <div className="flex gap-2 mb-3">
-            <button type="button"
-              onClick={() => setSplitMode('equal')}
-              className={`text-xs px-3 py-1.5 rounded border font-medium ${splitMode === 'equal' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-              Equal split
-            </button>
-            <button type="button"
-              onClick={switchToCustom}
-              className={`text-xs px-3 py-1.5 rounded border font-medium ${splitMode === 'custom' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-              Custom split
-            </button>
-          </div>
-
-          {splitMode === 'equal' && members.length > 0 && amountMinor > 0 && (
-            <p className="text-xs text-gray-400">
-              {fmtCurrency(Math.floor(amountMinor / members.length), currency)} per person ({members.length} members)
-            </p>
-          )}
-
-          {splitMode === 'custom' && members.length > 0 && (
-            <div className="space-y-2">
-              {members.map((m, i) => (
-                <div key={m.user_id} className="flex items-center gap-2">
-                  <span className="flex-1 text-sm text-gray-700 truncate">{m.display_name}</span>
-                  <input type="number" value={customAmounts[i] ?? ''}
-                    onChange={e => setCustomAmount(i, e.target.value)}
-                    step="0.01" min="0"
+        <Card>
+          <CardBody className="space-y-5">
+            {/* Amount — hero field */}
+            <div>
+              <label className="section-label block mb-2">Amount</label>
+              <div className="flex gap-3 items-start">
+                <div className="flex-1">
+                  <input
+                    type="number"
+                    value={amount}
+                    onChange={e => setAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-24 border rounded px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                  <span className="text-xs text-gray-400 w-8">{currency}</span>
+                    step="0.01"
+                    min="0.01"
+                    className="input-base text-subheading font-semibold"
+                    required
+                    autoFocus
+                  />
                 </div>
-              ))}
-              <div className={`text-xs font-medium pt-1 border-t ${remaining === 0 ? 'text-green-600' : remaining > 0 ? 'text-amber-600' : 'text-red-600'}`}>
-                {remaining === 0
-                  ? '✓ Splits match total'
-                  : remaining > 0
-                    ? `Remaining: ${fmtCurrency(remaining, currency)}`
-                    : `Over by: ${fmtCurrency(-remaining, currency)}`}
+                <select
+                  value={currency}
+                  onChange={e => setCurrency(e.target.value)}
+                  className="input-base w-24 shrink-0"
+                >
+                  {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+                </select>
               </div>
             </div>
-          )}
-        </div>
 
-        <button type="submit" disabled={saving || (splitMode === 'custom' && remaining !== 0)}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded py-2 text-sm font-medium">
-          {saving ? 'Adding…' : 'Add expense'}
-        </button>
-      </form>
+            {/* Description */}
+            <div>
+              <label className="section-label block mb-2">Description</label>
+              <input
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="e.g. Dinner at Namak"
+                className="input-base"
+                required
+              />
+            </div>
+          </CardBody>
+
+          <CardDivider />
+
+          {/* Split mode */}
+          <CardBody className="space-y-4">
+            <div>
+              <p className="section-label mb-3">Split</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSplitMode('equal')}
+                  className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-all ${
+                    splitMode === 'equal'
+                      ? 'bg-primary text-white border-primary'
+                      : 'border-outline-variant text-on-surface-muted hover:bg-surface-low'
+                  }`}
+                >
+                  Equal
+                </button>
+                <button
+                  type="button"
+                  onClick={switchToCustom}
+                  className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-all ${
+                    splitMode === 'custom'
+                      ? 'bg-primary text-white border-primary'
+                      : 'border-outline-variant text-on-surface-muted hover:bg-surface-low'
+                  }`}
+                >
+                  Custom
+                </button>
+              </div>
+            </div>
+
+            {splitMode === 'equal' && perPerson && (
+              <div className="px-4 py-3 bg-surface-low rounded-lg border border-outline-variant">
+                <p className="text-sm text-on-surface-muted">
+                  <span className="font-semibold text-on-surface">{perPerson}</span>
+                  {' '}per person ({members.length} members)
+                </p>
+              </div>
+            )}
+
+            {splitMode === 'custom' && members.length > 0 && (
+              <div className="space-y-3">
+                {members.map((m, i) => (
+                  <div key={m.user_id} className="flex items-center gap-3">
+                    <Avatar name={m.display_name} size="sm" />
+                    <span className="flex-1 text-sm text-on-surface truncate">{m.display_name}</span>
+                    <input
+                      type="number"
+                      value={customAmounts[i] ?? ''}
+                      onChange={e => setCustomAmount(i, e.target.value)}
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      className="input-base w-28 text-right"
+                    />
+                    <span className="text-xs text-on-surface-muted w-8 shrink-0">{currency}</span>
+                  </div>
+                ))}
+
+                {/* Validation feedback */}
+                <div className={`flex items-center gap-2 px-3 py-2 rounded text-xs font-semibold border ${
+                  remaining === 0
+                    ? 'bg-owed-bg border-owed-border text-owed-dim'
+                    : 'bg-owing-bg border-owing-border text-owing-dim'
+                }`}>
+                  {remaining === 0
+                    ? '✓ Splits match total'
+                    : remaining > 0
+                      ? `Remaining: ${fmtAmount(remaining, currency)}`
+                      : `Over by: ${fmtAmount(-remaining, currency)}`}
+                </div>
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
+        <form onSubmit={handleSubmit}>
+          <Button
+            type="submit"
+            loading={saving}
+            fullWidth
+            size="lg"
+            disabled={splitMode === 'custom' && remaining !== 0}
+          >
+            Add expense
+          </Button>
+        </form>
+      </div>
     </div>
   )
 }

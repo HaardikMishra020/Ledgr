@@ -1,3 +1,43 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    background-color: #f7f9fb;
+    color: #191c1e;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  input, textarea, select, button {
+    font-family: inherit;
+  }
+
+  /* Remove number input arrows */
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer components {
+  .input-base {
+    @apply w-full border border-outline-variant rounded px-3 py-2.5 text-sm text-on-surface bg-surface-card
+           placeholder:text-on-surface-muted/40
+           focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10
+           transition-all duration-150;
+  }
+
+  .section-label {
+    @apply text-label font-semibold text-on-surface-muted uppercase tracking-widest;
+  }
+}
