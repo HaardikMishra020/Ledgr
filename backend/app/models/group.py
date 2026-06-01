@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
@@ -15,6 +16,7 @@ class Group(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
+    icon: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     default_currency: Mapped[str] = mapped_column(
         String(3), nullable=False, default="USD"
     )

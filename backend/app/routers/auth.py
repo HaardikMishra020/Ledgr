@@ -1,8 +1,12 @@
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+UPLOAD_DIR = Path("uploads/avatars")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 from app.core.security import (
     create_access_token,
@@ -24,6 +28,7 @@ from app.schemas.users import UserResponse
 
 from app.core.deps import get_current_user
 from app.models.user import User as UserModel
+from app.schemas.users import UpdateProfileRequest
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -103,4 +108,38 @@ async def logout(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
 
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: UserModel = Depends(get_current_user)):
+    return current_user
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_profile(
+    body: UpdateProfileRequest,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    current_user.display_name = body.display_name
+    if body.default_currency is not None:
+        current_user.default_currency = body.default_currency.upper()
+    await db.commit()
+    await db.refresh(current_user)
+    return current_user
+
+
+@router.put("/me/avatar", response_model=UserResponse)
+async def update_avatar(
+    file: UploadFile,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="file must be an image")
+
+    ext = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "bin"
+    filename = f"{current_user.id}.{ext}"
+    dest = UPLOAD_DIR / filename
+    dest.write_bytes(await file.read())
+
+    current_user.avatar_url = f"/static/avatars/{filename}"
+    await db.commit()
+    await db.refresh(current_user)
     return current_user

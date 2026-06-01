@@ -3,41 +3,125 @@
 @tailwind utilities;
 
 @layer base {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     box-sizing: border-box;
   }
 
-  body {
-    background-color: #f7f9fb;
-    color: #191c1e;
+  html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  input, textarea, select, button {
-    font-family: inherit;
+  body {
+    @apply bg-background text-on-surface font-sans;
   }
 
-  /* Remove number input arrows */
-  input[type='number']::-webkit-inner-spin-button,
-  input[type='number']::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
+  :focus-visible {
+    outline: 2px solid theme('colors.primary');
+    outline-offset: 2px;
   }
-  input[type='number'] {
-    -moz-appearance: textfield;
+
+  :focus:not(:focus-visible) {
+    outline: none;
   }
 }
 
 @layer components {
-  .input-base {
-    @apply w-full border border-outline-variant rounded px-3 py-2.5 text-sm text-on-surface bg-surface-card
-           placeholder:text-on-surface-muted/40
-           focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10
-           transition-all duration-150;
+  /* Tonal elevation — teal-tinted ambient shadow from design system */
+  .tonal-elevation {
+    box-shadow: 0 4px 16px -4px rgba(0, 107, 95, 0.06);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
   }
 
-  .section-label {
-    @apply text-label font-semibold text-on-surface-muted uppercase tracking-widest;
+  .tonal-elevation:hover {
+    transform: translateY(-2px);
+  }
+}
+
+@layer utilities {
+  /* Material Symbols icon font tuning */
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  /* Thin scrollbar for main content panels */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #e0e3e5;
+    border-radius: 10px;
+  }
+
+  /* Frosted glass top bar */
+  .glass-effect {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+  }
+
+  /* Frosted glass modal/panel (slightly more opaque than glass-effect) */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+  }
+
+  /* Auth panel toggle — matches Stitch cubic-bezier easing */
+  .auth-transition {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Slow bounce for floating UI card in hero */
+  @keyframes bounce-slow {
+    0%, 100% {
+      transform: translateY(0);
+      animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+    }
+    50% {
+      transform: translateY(-8px);
+      animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+    }
+  }
+
+  .animate-bounce-slow {
+    animation: bounce-slow 3s ease-in-out infinite;
+  }
+
+  /* Invite page — frosted background */
+  .trip-bg {
+    background-image: linear-gradient(rgba(247, 249, 251, 0.88), rgba(247, 249, 251, 0.88)),
+      url('https://lh3.googleusercontent.com/aida-public/AB6AXuCvM4nFNAR17aw9iMEUP63grfCqNxrtlie9Rei5ymHDDszM279zERD1Emg20a6lj4CXaKB8TVmtzoMWoudzn1Akb4aYa8RP34nANTEpeqLfFSHoqHgDX6YrPhs0IBmEi_E3AaQb1CAJ-I5-Di6f5E1Wsrkgy336fiHfFquxJWkwgYIPO4-D4gHwpMJjKIo87ruNFi-0Yxff62pr1idfDxJP-S4mDwp4yrquTvOpwzs4Gl_8TOMcj0guHmSvMGPbEPdCoA9PrjrZOSU');
+    background-size: cover;
+    background-position: center;
+  }
+
+  /* Stitch settle-up step transition */
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .fade-in {
+    animation: fade-in-up 0.4s ease-out forwards;
+  }
+
+  /* Invite card slide-in animation */
+  @keyframes slide-in-from-bottom {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-invite-in {
+    animation: slide-in-from-bottom 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 }

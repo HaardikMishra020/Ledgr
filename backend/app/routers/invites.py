@@ -36,12 +36,46 @@ async def get_invite_info(token: str, db: AsyncSession = Depends(get_db)):
         if creator:
             invited_by = creator.display_name
 
+    # Fetch member preview for the invite card
+    from app.models.group_member import GroupMember
+    from app.schemas.invites import MemberPreview
+
+    member_rows = (
+        await db.execute(
+            select(GroupMember, User)
+            .join(User, User.id == GroupMember.user_id)
+            .where(GroupMember.group_id == invite.group_id)
+            .order_by(GroupMember.joined_at)
+            .limit(4)
+        )
+    ).all()
+
+    member_count_row = await db.scalar(
+        select(GroupMember).where(GroupMember.group_id == invite.group_id)
+    )
+    member_count = len(
+        (
+            await db.execute(
+                select(GroupMember).where(GroupMember.group_id == invite.group_id)
+            )
+        ).scalars().all()
+    )
+
     return InviteInfoResponse(
         group_id=invite.group_id,
         group_name=group.name if group else "Unknown group",
+        group_icon=group.icon if group else None,
         invited_by=invited_by,
         expires_at=invite.expires_at,
         already_accepted=invite.accepted_at is not None,
+        member_count=member_count,
+        member_preview=[
+            MemberPreview(
+                display_name=u.display_name,
+                avatar_url=u.avatar_url if hasattr(u, "avatar_url") else None,
+            )
+            for _, u in member_rows
+        ],
     )
 
 

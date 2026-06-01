@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -7,11 +8,13 @@ from pydantic import BaseModel
 class GroupCreate(BaseModel):
     name: str
     default_currency: str = "USD"
+    icon: Optional[str] = None
 
 
 class GroupResponse(BaseModel):
     id: uuid.UUID
     name: str
+    icon: Optional[str] = None
     default_currency: str
     created_by: uuid.UUID
     status: str

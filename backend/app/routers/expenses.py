@@ -164,10 +164,16 @@ async def delete_expense(
 async def initiate_payment(
     group_id: uuid.UUID,
     body: RecordPaymentRequest,
+    idempotency_key_header: Optional[str] = Header(default=None, alias="Idempotency-Key"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Payer initiates. Balance does not change yet — receiver must confirm."""
+    """Payer initiates. Balance does not change yet — receiver must confirm.
+    Idempotency is handled via the Idempotency-Key header (same as expense endpoints):
+    the client generates one UUID per payment intent; retries with the same key are
+    safe. Different keys always produce distinct events, so repeated partial payments
+    of the same amount on different days are never collapsed.
+    """
     await _require_member(group_id, current_user.id, db)
 
     group = await db.scalar(select(Group).where(Group.id == group_id))
@@ -182,7 +188,8 @@ async def initiate_payment(
         "fx_to_default": str(fx_to_default),
     }
 
-    event = await append_event(group_id, "payment_initiated", payload, current_user.id, db)
+    idem_key = _parse_idempotency_key(idempotency_key_header)
+    event = await append_event(group_id, "payment_initiated", payload, current_user.id, db, idem_key)
     await db.commit()
     await db.refresh(event)
     return event
