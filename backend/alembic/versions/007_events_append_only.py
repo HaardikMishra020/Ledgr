@@ -21,8 +21,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create the application role
-    op.execute("CREATE ROLE ledgr_app WITH LOGIN PASSWORD 'ledgr_app'")
+    # Create the application role (NOLOGIN; app connects via DATABASE_URL superuser creds)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE ROLE ledgr_app WITH NOLOGIN;
+        EXCEPTION WHEN duplicate_object THEN
+            ALTER ROLE ledgr_app WITH NOLOGIN;
+        END $$;
+    """)
 
     # Grant read/write access to all current and future tables
     op.execute("GRANT USAGE ON SCHEMA public TO ledgr_app")
