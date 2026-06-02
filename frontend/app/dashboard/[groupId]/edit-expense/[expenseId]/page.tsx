@@ -223,7 +223,7 @@ export default function EditExpensePage() {
         amount: amountMinor,
         currency,
         paid_by: paidBy || me!.id,
-        occurred_at: date ? new Date(`${date}T00:00:00`).toISOString() : undefined,
+        occurred_at: date ? `${date}T00:00:00.000Z` : undefined,
         split,
       })
       router.push(backHref)

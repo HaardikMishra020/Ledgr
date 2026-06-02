@@ -8,40 +8,70 @@ function authHeaders(): Record<string, string> {
   }
 }
 
+async function tryRefreshTokens(): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+  const refreshToken = localStorage.getItem('refresh_token')
+  if (!refreshToken) return false
+  try {
+    const res = await fetch(`${API}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+    if (!res.ok) return false
+    const data = await res.json()
+    localStorage.setItem('access_token', data.access_token)
+    localStorage.setItem('refresh_token', data.refresh_token)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function withRefreshRetry(makeRequest: () => Promise<Response>): Promise<Response> {
+  let res = await makeRequest()
+  if (res.status === 401 && await tryRefreshTokens()) {
+    res = await makeRequest()
+  }
+  return res
+}
+
 async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${API}${path}`, { headers: authHeaders() })
+  const res = await withRefreshRetry(() => fetch(`${API}${path}`, { headers: authHeaders() }))
   if (res.status === 401) throw new Error('UNAUTHORIZED')
   if (!res.ok) throw new Error(`API error ${res.status}`)
   return res.json()
 }
 
 async function apiPost<T>(path: string, body: unknown, extraHeaders?: Record<string, string>): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
+  const bodyStr = JSON.stringify(body)
+  const res = await withRefreshRetry(() => fetch(`${API}${path}`, {
     method: 'POST',
     headers: { ...authHeaders(), ...extraHeaders },
-    body: JSON.stringify(body),
-  })
+    body: bodyStr,
+  }))
   if (res.status === 401) throw new Error('UNAUTHORIZED')
   if (!res.ok) throw new Error(`API error ${res.status}`)
   return res.json()
 }
 
 async function apiPut<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
+  const bodyStr = JSON.stringify(body)
+  const res = await withRefreshRetry(() => fetch(`${API}${path}`, {
     method: 'PUT',
     headers: authHeaders(),
-    body: JSON.stringify(body),
-  })
+    body: bodyStr,
+  }))
   if (res.status === 401) throw new Error('UNAUTHORIZED')
   if (!res.ok) throw new Error(`API error ${res.status}`)
   return res.json()
 }
 
 async function apiDelete(path: string): Promise<void> {
-  const res = await fetch(`${API}${path}`, {
+  const res = await withRefreshRetry(() => fetch(`${API}${path}`, {
     method: 'DELETE',
     headers: authHeaders(),
-  })
+  }))
   if (res.status === 401) throw new Error('UNAUTHORIZED')
   if (!res.ok) throw new Error(`API error ${res.status}`)
 }

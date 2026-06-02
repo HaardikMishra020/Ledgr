@@ -192,9 +192,7 @@ export default function NewExpensePage() {
         amount: amountMinor,
         currency,
         paid_by: paidBy || me!.id,
-        // Build a local-midnight Date so the stored UTC value round-trips back
-        // to the correct calendar date in the user's timezone.
-        occurred_at: date ? new Date(`${date}T00:00:00`).toISOString() : undefined,
+        occurred_at: date ? `${date}T00:00:00.000Z` : undefined,
         split,
       })
       router.push(backHref)

@@ -48,11 +48,12 @@ export function clearTokens() {
 }
 
 export async function logout(): Promise<void> {
-  const token = getAccessToken()
-  if (token) {
+  const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null
+  if (refreshToken) {
     await fetch(`${API}/auth/logout`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
     }).catch(() => {})  // clear tokens even if the server call fails
   }
   clearTokens()
