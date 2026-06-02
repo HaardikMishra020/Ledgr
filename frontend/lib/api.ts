@@ -166,7 +166,7 @@ export const getGroups = () =>
 export const createGroup = (body: { name: string; default_currency: string; icon?: string }) =>
   apiPost<{ id: string }>('/groups', body)
 
-export const getGroupBalances = (summaryCurrency = 'USD') =>
+export const getGroupBalances = (summaryCurrency = 'INR') =>
   apiFetch<GroupBalance[]>(`/groups/balances?summary_currency=${summaryCurrency}`)
 
 export const getGlobalActivity = (limit = 20) =>

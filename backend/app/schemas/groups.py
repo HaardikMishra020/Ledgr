@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 class GroupCreate(BaseModel):
     name: str
-    default_currency: str = "USD"
+    default_currency: str = "INR"
     icon: Optional[str] = None
 
 

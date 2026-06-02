@@ -13,7 +13,7 @@ class SplitEntry(BaseModel):
 class AddExpenseRequest(BaseModel):
     description: str
     amount: int  # integer minor units (e.g. 2400 = $24.00)
-    currency: str = "USD"
+    currency: str = "INR"
     paid_by: Optional[uuid.UUID] = None
     occurred_at: Optional[datetime] = None
     split: Optional[list[SplitEntry]] = None  # None = equal split computed server-side
@@ -22,7 +22,7 @@ class AddExpenseRequest(BaseModel):
 class EditExpenseRequest(BaseModel):
     description: str
     amount: int
-    currency: str = "USD"
+    currency: str = "INR"
     paid_by: Optional[uuid.UUID] = None
     occurred_at: Optional[datetime] = None
     split: Optional[list[SplitEntry]] = None
@@ -31,4 +31,4 @@ class EditExpenseRequest(BaseModel):
 class RecordPaymentRequest(BaseModel):
     to_user_id: uuid.UUID
     amount: int  # integer minor units
-    currency: str = "USD"
+    currency: str = "INR"

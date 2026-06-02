@@ -65,9 +65,9 @@ export default function DashboardPage() {
 
     async function load() {
       try {
-        const [meData, groupsData, activityData] = await Promise.all([
-          getMe(),
-          getGroupBalances(),
+        const meData = await getMe()
+        const [groupsData, activityData] = await Promise.all([
+          getGroupBalances(meData.default_currency),
           getGlobalActivity(20),
         ])
         setMe(meData)
@@ -94,8 +94,8 @@ export default function DashboardPage() {
     load()
   }, [router])
 
-  // Derived totals — use FX-converted summary balances
-  const primaryCurrency = groups[0]?.summary_currency ?? 'INR'
+  // Derived totals — use FX-converted summary balances in user's default currency
+  const primaryCurrency = me?.default_currency ?? groups[0]?.summary_currency ?? 'INR'
   const totalOwed = groups.reduce((s, g) => s + Math.max(0, g.net_balance_summary), 0)
   const totalOwes = groups.reduce((s, g) => s + Math.max(0, -g.net_balance_summary), 0)
 

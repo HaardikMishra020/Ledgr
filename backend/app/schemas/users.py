@@ -10,7 +10,7 @@ class UserResponse(BaseModel):
     email: str
     display_name: str
     avatar_url: Optional[str] = None
-    default_currency: str = "USD"
+    default_currency: str = "INR"
     created_at: datetime
 
     model_config = {"from_attributes": True}

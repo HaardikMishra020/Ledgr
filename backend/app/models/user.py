@@ -19,7 +19,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     avatar_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    default_currency: Mapped[str] = mapped_column(String, nullable=False, default="USD")
+    default_currency: Mapped[str] = mapped_column(String, nullable=False, default="INR")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
