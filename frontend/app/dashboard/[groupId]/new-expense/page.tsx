@@ -29,10 +29,6 @@ type CategoryId = typeof CATEGORIES[number]['id']
 
 // ── Helper ───────────────────────────────────────────────────────────────────
 
-function todayISO(): string {
-  return new Date().toISOString().split('T')[0]
-}
-
 function fmtMajor(minorUnits: number, symbol: string): string {
   const major = minorUnits / 100
   return `${symbol} ${major.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -56,7 +52,6 @@ export default function NewExpensePage() {
   const [amountStr, setAmountStr] = useState('')        // major-unit string, e.g. "24.50"
   const [currency, setCurrency] = useState('INR')
   const [description, setDescription] = useState('')
-  const [date, setDate] = useState(todayISO)
   const [category, setCategory] = useState<CategoryId>('Food')
   const [paidBy, setPaidBy] = useState('')              // user_id
   const [showPaidByMenu, setShowPaidByMenu] = useState(false)
@@ -192,7 +187,7 @@ export default function NewExpensePage() {
         amount: amountMinor,
         currency,
         paid_by: paidBy || me!.id,
-        occurred_at: date ? `${date}T00:00:00.000Z` : undefined,
+        occurred_at: new Date().toISOString(),
         split,
       })
       router.push(backHref)
@@ -341,39 +336,26 @@ export default function NewExpensePage() {
                   </div>
                 </div>
 
-                {/* Date + Category */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={e => setDate(e.target.value)}
-                      className="w-full px-4 py-3 bg-surface rounded-lg border border-outline-variant focus:border-primary outline-none"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">
-                      Category
-                    </label>
-                    <div className="flex gap-2 overflow-x-auto pb-1">
-                      {CATEGORIES.map(cat => (
-                        <button
-                          key={cat.id}
-                          title={cat.label}
-                          onClick={() => setCategory(cat.id)}
-                          className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border transition-colors ${
-                            category === cat.id
-                              ? 'bg-secondary-container text-on-secondary-container border-secondary'
-                              : 'bg-surface-container text-on-surface-variant border-outline-variant hover:border-primary'
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-[20px]">{cat.icon}</span>
-                        </button>
-                      ))}
-                    </div>
+                {/* Category */}
+                <div className="space-y-2">
+                  <label className="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">
+                    Category
+                  </label>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {CATEGORIES.map(cat => (
+                      <button
+                        key={cat.id}
+                        title={cat.label}
+                        onClick={() => setCategory(cat.id)}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border transition-colors ${
+                          category === cat.id
+                            ? 'bg-secondary-container text-on-secondary-container border-secondary'
+                            : 'bg-surface-container text-on-surface-variant border-outline-variant hover:border-primary'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[20px]">{cat.icon}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
