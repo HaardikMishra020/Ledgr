@@ -67,6 +67,18 @@ async function apiPut<T>(path: string, body: unknown): Promise<T> {
   return res.json()
 }
 
+async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  const bodyStr = JSON.stringify(body)
+  const res = await withRefreshRetry(() => fetch(`${API}${path}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: bodyStr,
+  }))
+  if (res.status === 401) throw new Error('UNAUTHORIZED')
+  if (!res.ok) throw new Error(`API error ${res.status}`)
+  return res.json()
+}
+
 async function apiDelete(path: string): Promise<void> {
   const res = await withRefreshRetry(() => fetch(`${API}${path}`, {
     method: 'DELETE',
@@ -316,4 +328,4 @@ export const updateProfile = (body: { display_name: string; default_currency?: s
   apiPut<Me>('/auth/me', body)
 
 export const archiveGroup = (groupId: string) =>
-  apiPost<{ message: string }>(`/groups/${groupId}/archive`, {})
+  apiPatch<{ message: string }>(`/groups/${groupId}/archive`, {})

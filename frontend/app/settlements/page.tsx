@@ -9,6 +9,7 @@ import {
 } from '@/lib/api'
 import type { Me, SettlementTransaction, Member, PendingPayment } from '@/lib/api'
 import Sidebar from '@/components/layout/Sidebar'
+import BottomNav from '@/components/layout/BottomNav'
 
 type Step = 'selection' | 'payment' | 'initiated'
 
@@ -216,7 +217,7 @@ export default function SettlementsPage() {
     <div className="flex min-h-screen w-full">
       <Sidebar active="settlements" />
 
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 pb-20 md:pb-0">
         <header className="flex justify-between items-center px-container-padding h-16 w-full bg-surface border-b border-outline-variant shadow-sm sticky top-0 z-10">
           <div className="flex items-center gap-4">
             {step !== 'selection' && (
@@ -488,6 +489,7 @@ export default function SettlementsPage() {
           </div>
         </div>
       </main>
+      <BottomNav active="settlements" />
     </div>
   )
 }

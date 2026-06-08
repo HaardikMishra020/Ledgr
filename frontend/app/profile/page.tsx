@@ -6,6 +6,7 @@ import { getAccessToken, logout } from '@/lib/auth'
 import { getMe, updateProfile } from '@/lib/api'
 import type { Me } from '@/lib/api'
 import Sidebar from '@/components/layout/Sidebar'
+import BottomNav from '@/components/layout/BottomNav'
 
 function AvatarCircle({ name, avatarUrl, size = 'lg' }: { name: string; avatarUrl: string | null; size?: 'sm' | 'lg' }) {
   const initials = name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -86,7 +87,7 @@ export default function ProfilePage() {
     <div className="flex min-h-screen w-full">
       <Sidebar active="settings" />
 
-      <main className="flex-1 min-w-0 pt-0">
+      <main className="flex-1 min-w-0 pt-0 pb-20 md:pb-0">
         {/* Top bar */}
         <header className="flex justify-between items-center px-container-padding h-16 w-full bg-surface border-b border-outline-variant shadow-sm sticky top-0 z-10">
           <div>
@@ -302,6 +303,7 @@ export default function ProfilePage() {
           </div>
         </div>
       </main>
+      <BottomNav active="profile" />
     </div>
   )
 }

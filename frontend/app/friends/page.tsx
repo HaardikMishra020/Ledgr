@@ -16,6 +16,7 @@ import {
 } from '@/lib/api'
 import type { Me, FriendshipItem } from '@/lib/api'
 import Sidebar from '@/components/layout/Sidebar'
+import BottomNav from '@/components/layout/BottomNav'
 
 type SearchUser = { id: string; display_name: string; email: string }
 
@@ -98,8 +99,33 @@ export default function FriendsPage() {
     <div className="flex min-h-screen w-full">
       <Sidebar active="friends" />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
+      <div className="flex-1 flex flex-col min-w-0 pb-20 md:pb-0">
+        <header className="sticky top-0 h-16 bg-surface border-b border-outline-variant shadow-sm z-40 flex items-center px-gutter">
+          <h2 className="font-headline-md text-headline-md text-primary">Friends</h2>
+        </header>
+
+        <main className="flex-1 flex flex-col items-center justify-center px-container-padding py-16 text-center gap-4">
+          <div className="w-20 h-20 rounded-full bg-secondary-container flex items-center justify-center mb-2">
+            <span className="material-symbols-outlined text-[40px] text-secondary">diversity_3</span>
+          </div>
+          <h3 className="font-headline-lg text-headline-lg text-primary">Friends — Coming Soon</h3>
+          <p className="font-body-lg text-body-lg text-on-surface-variant max-w-sm">
+            Split expenses with friends across groups. This feature is on its way.
+          </p>
+        </main>
+      </div>
+
+      <BottomNav active="friends" />
+    </div>
+  )
+
+  /* ── Full friends UI (restore when feature is ready) ────────────────────────
+
+  return (
+    <div className="flex min-h-screen w-full">
+      <Sidebar active="friends" />
+
+      <div className="flex-1 flex flex-col min-w-0 pb-20 md:pb-0">
         <header className="sticky top-0 h-16 bg-surface border-b border-outline-variant shadow-sm z-40 flex items-center justify-between px-gutter">
           <div className="relative flex-1 max-w-md">
             <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
@@ -120,10 +146,8 @@ export default function FriendsPage() {
           </div>
         </header>
 
-        {/* Main */}
         <main className="flex-1 px-container-padding py-8">
         <div className="max-w-7xl mx-auto space-y-gutter">
-          {/* Page header */}
           <div className="flex justify-between items-end mb-8">
             <div>
               <h2 className="font-headline-lg text-headline-lg text-primary">Manage Friends</h2>
@@ -139,9 +163,7 @@ export default function FriendsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-12 gap-gutter">
-              {/* Left: search + suggestions */}
               <div className="col-span-12 lg:col-span-8 space-y-gutter">
-                {/* Add a Friend */}
                 <div className="bg-surface-container-lowest border border-outline-variant p-card-padding rounded-lg tonal-elevation">
                   <h3 className="font-headline-md text-headline-md text-primary mb-4">Add a Friend</h3>
                   <div className="flex gap-element-gap">
@@ -162,7 +184,6 @@ export default function FriendsPage() {
                     )}
                   </div>
 
-                  {/* Search results */}
                   {searchResults.length > 0 && (
                     <div className="mt-4 space-y-2">
                       {searchResults.map(user => (
@@ -197,7 +218,6 @@ export default function FriendsPage() {
                   )}
                 </div>
 
-                {/* Current Friends */}
                 {friends.length > 0 && (
                   <div className="bg-surface-container-lowest border border-outline-variant p-card-padding rounded-lg tonal-elevation">
                     <h3 className="font-headline-md text-headline-md text-primary mb-6">Your Friends</h3>
@@ -237,7 +257,6 @@ export default function FriendsPage() {
                 )}
               </div>
 
-              {/* Right: pending requests */}
               <div className="col-span-12 lg:col-span-4 space-y-gutter">
                 <div className="bg-surface-container-lowest border border-outline-variant p-card-padding rounded-lg tonal-elevation h-full">
                   <h3 className="font-headline-md text-headline-md text-primary mb-6 flex items-center gap-2">
@@ -250,7 +269,6 @@ export default function FriendsPage() {
                   </h3>
 
                   <div className="space-y-6">
-                    {/* Incoming */}
                     {incoming.length > 0 && (
                       <div className="space-y-3">
                         <p className="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">Received</p>
@@ -284,7 +302,6 @@ export default function FriendsPage() {
                       </div>
                     )}
 
-                    {/* Sent */}
                     {sent.length > 0 && (
                       <div className="space-y-3">
                         <p className="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">Sent</p>
@@ -325,6 +342,9 @@ export default function FriendsPage() {
         </div>
         </main>
       </div>
+      <BottomNav active="friends" />
     </div>
   )
+
+  ── end of commented-out friends UI ── */
 }

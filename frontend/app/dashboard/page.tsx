@@ -7,6 +7,7 @@ import { getAccessToken } from '@/lib/auth'
 import { getMe, getGroupBalances, getGlobalActivity } from '@/lib/api'
 import type { Me, GroupBalance, RichActivityEvent } from '@/lib/api'
 import Sidebar from '@/components/layout/Sidebar'
+import BottomNav from '@/components/layout/BottomNav'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ export default function DashboardPage() {
       <Sidebar active="dashboard" />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 pb-20 md:pb-0">
         {/* Top App Bar */}
         <header className="flex justify-between items-center px-container-padding h-16 w-full bg-surface dark:bg-surface-dim border-b border-outline-variant dark:border-outline shadow-sm dark:shadow-none top-0 sticky z-10">
           <div className="flex items-center gap-gutter">
@@ -195,7 +196,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
             {/* Active Groups Grid */}
-            <div className="lg:col-span-8 space-y-gutter">
+            <div id="groups-section" className="lg:col-span-8 space-y-gutter">
               <div className="flex justify-between items-center">
                 <h3 className="text-headline-md font-headline-md">Active Groups</h3>
                 <span className="text-label-md text-on-surface-variant">{groups.length} active</span>
@@ -254,31 +255,7 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* Mobile Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-outline-variant px-6 py-3 flex justify-between items-center z-50">
-        <button className="flex flex-col items-center gap-1 text-secondary">
-          <span className="material-symbols-outlined" data-icon="grid_view" style={{ fontVariationSettings: "'FILL' 1" }}>grid_view</span>
-          <span className="text-[10px] font-bold">Dashboard</span>
-        </button>
-        <button className="flex flex-col items-center gap-1 text-on-surface-variant">
-          <span className="material-symbols-outlined" data-icon="group">group</span>
-          <span className="text-[10px]">Groups</span>
-        </button>
-        <button className="flex flex-col items-center -mt-8">
-          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-on-primary shadow-lg border-4 border-background">
-            <span className="material-symbols-outlined" data-icon="add">add</span>
-          </div>
-          <span className="text-[10px] mt-1 font-bold">Expense</span>
-        </button>
-        <button className="flex flex-col items-center gap-1 text-on-surface-variant">
-          <span className="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
-          <span className="text-[10px]">Activity</span>
-        </button>
-        <button className="flex flex-col items-center gap-1 text-on-surface-variant">
-          <span className="material-symbols-outlined" data-icon="person">person</span>
-          <span className="text-[10px]">Profile</span>
-        </button>
-      </nav>
+      <BottomNav active="dashboard" />
     </div>
   )
 }

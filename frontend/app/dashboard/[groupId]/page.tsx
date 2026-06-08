@@ -291,16 +291,13 @@ export default function GroupDetailPage() {
       <Sidebar active="groups" addExpenseHref={`/dashboard/${groupId}/new-expense`} />
 
       {/* ── Main ────────────────────────────────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto custom-scrollbar bg-background">
+      <main className="flex-1 overflow-y-auto custom-scrollbar bg-background pb-20 md:pb-0">
         {/* Top App Bar */}
         <header className="flex justify-between items-center px-container-padding h-16 w-full sticky top-0 z-40 glass-effect border-b border-outline-variant shadow-sm">
-          <div className="flex items-center gap-4">
-            <button className="md:hidden p-2">
-              <span className="material-symbols-outlined">menu</span>
-            </button>
-            <div className="flex items-center gap-2">
-              {group.icon && <span className="text-xl">{group.icon}</span>}
-              <h2 className="text-headline-md font-headline-md font-bold text-primary">{group.name}</h2>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              {group.icon && <span className="text-xl flex-shrink-0">{group.icon}</span>}
+              <h2 className="text-base md:text-headline-md font-bold text-primary truncate max-w-[160px] sm:max-w-xs md:max-w-none">{group.name}</h2>
             </div>
           </div>
 
@@ -333,11 +330,11 @@ export default function GroupDetailPage() {
               </div>
             )}
 
-            {/* Archive — owner only */}
+            {/* Archive — owner only, desktop only (mobile uses bottom nav) */}
             {group?.created_by === me?.id && group?.status === 'active' && (
               <button
                 onClick={handleArchiveGroup}
-                className="p-2 hover:bg-error/10 rounded-full transition-colors text-on-surface-variant hover:text-error"
+                className="hidden md:flex p-2 hover:bg-error/10 rounded-full transition-colors text-on-surface-variant hover:text-error"
                 title="Archive group"
               >
                 <span className="material-symbols-outlined">archive</span>
@@ -345,7 +342,7 @@ export default function GroupDetailPage() {
             )}
             <Link
               href="/dashboard"
-              className="p-2 hover:bg-surface-container-high rounded-full transition-colors"
+              className="hidden md:flex p-2 hover:bg-surface-container-high rounded-full transition-colors"
               title="Back to Dashboard"
             >
               <span className="material-symbols-outlined">arrow_back</span>
@@ -455,7 +452,7 @@ export default function GroupDetailPage() {
           <div className="lg:col-span-4 space-y-gutter">
 
             {/* Balances Panel */}
-            <div className="bg-surface-container rounded-xl p-card-padding border border-outline-variant">
+            <div id="balances-section" className="bg-surface-container rounded-xl p-card-padding border border-outline-variant">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="font-headline-md text-primary">Balances</h4>
               </div>
@@ -504,7 +501,7 @@ export default function GroupDetailPage() {
             </div>
 
             {/* Members Panel */}
-            <div className="bg-surface-container rounded-xl p-card-padding border border-outline-variant">
+            <div id="members-section" className="bg-surface-container rounded-xl p-card-padding border border-outline-variant">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="font-headline-md text-primary">Members</h4>
                 <span className="text-label-md text-on-surface-variant">{members.length}</span>
@@ -538,13 +535,56 @@ export default function GroupDetailPage() {
         </div>
       </main>
 
-      {/* Mobile FAB */}
-      <Link
-        href={`/dashboard/${groupId}/new-expense`}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-secondary text-white rounded-full shadow-lg flex items-center justify-center md:hidden active:scale-90 transition-transform z-50"
-      >
-        <span className="material-symbols-outlined">add</span>
-      </Link>
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-outline-variant px-6 py-3 flex justify-between items-center z-50">
+        <button
+          className="flex flex-col items-center gap-1 text-on-surface-variant"
+          onClick={() => router.push('/dashboard')}
+        >
+          <span className="material-symbols-outlined">arrow_back</span>
+          <span className="text-[10px]">Back</span>
+        </button>
+        <button
+          className="flex flex-col items-center gap-1 text-on-surface-variant"
+          onClick={() => document.getElementById('members-section')?.scrollIntoView({ behavior: 'smooth' })}
+        >
+          <span className="material-symbols-outlined">group</span>
+          <span className="text-[10px]">Members</span>
+        </button>
+        <Link
+          href={`/dashboard/${groupId}/new-expense`}
+          className="flex flex-col items-center -mt-8"
+        >
+          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-on-primary shadow-lg border-4 border-background">
+            <span className="material-symbols-outlined">add</span>
+          </div>
+          <span className="text-[10px] mt-1 font-bold">Add</span>
+        </Link>
+        <button
+          className="flex flex-col items-center gap-1 text-on-surface-variant"
+          onClick={() => document.getElementById('balances-section')?.scrollIntoView({ behavior: 'smooth' })}
+        >
+          <span className="material-symbols-outlined">account_balance_wallet</span>
+          <span className="text-[10px]">Balances</span>
+        </button>
+        {group.created_by === me?.id && group.status === 'active' ? (
+          <button
+            className="flex flex-col items-center gap-1 text-on-surface-variant"
+            onClick={handleArchiveGroup}
+          >
+            <span className="material-symbols-outlined">archive</span>
+            <span className="text-[10px]">Archive</span>
+          </button>
+        ) : (
+          <button
+            className="flex flex-col items-center gap-1 text-on-surface-variant"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          >
+            <span className="material-symbols-outlined">expand_less</span>
+            <span className="text-[10px]">Top</span>
+          </button>
+        )}
+      </nav>
     </div>
   )
 }

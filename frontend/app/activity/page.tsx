@@ -7,6 +7,7 @@ import { getAccessToken } from '@/lib/auth'
 import { getMe, getGlobalActivity } from '@/lib/api'
 import type { Me, RichActivityEvent } from '@/lib/api'
 import Sidebar from '@/components/layout/Sidebar'
+import BottomNav from '@/components/layout/BottomNav'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -166,7 +167,7 @@ export default function ActivityPage() {
     <div className="flex min-h-screen w-full">
       <Sidebar active="activity" />
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 pb-20 md:pb-0">
         {/* ── Top App Bar ──────────────────────────────────────────────────── */}
         <header className="sticky top-0 z-50 bg-background border-b border-outline-variant shadow-sm flex justify-between items-center px-container-padding h-16">
           <h1 className="font-headline-lg text-headline-lg font-bold text-primary">Activity</h1>
@@ -302,25 +303,7 @@ export default function ActivityPage() {
         </div>
       </div>
 
-      {/* ── Mobile Bottom Nav ────────────────────────────────────────────── */}
-      <nav className="md:hidden fixed bottom-0 left-0 w-full z-50 bg-surface border-t border-outline-variant shadow-lg flex justify-around items-center px-4 py-3">
-        <Link href="/dashboard" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-secondary transition-colors">
-          <span className="material-symbols-outlined">home</span>
-          <span className="font-label-md text-label-md">Home</span>
-        </Link>
-        <div className="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-4 py-1">
-          <span className="material-symbols-outlined">receipt_long</span>
-          <span className="font-label-md text-label-md">Activity</span>
-        </div>
-        <Link href="/friends" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-secondary transition-colors">
-          <span className="material-symbols-outlined">person</span>
-          <span className="font-label-md text-label-md">Friends</span>
-        </Link>
-        <Link href="/dashboard" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-secondary transition-colors">
-          <span className="material-symbols-outlined">group</span>
-          <span className="font-label-md text-label-md">Groups</span>
-        </Link>
-      </nav>
+      <BottomNav active="activity" />
     </div>
   )
 }

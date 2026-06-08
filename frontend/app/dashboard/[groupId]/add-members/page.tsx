@@ -16,6 +16,7 @@ import {
 } from '@/lib/api'
 import type { Me, Group, Member, FriendshipItem } from '@/lib/api'
 import Sidebar from '@/components/layout/Sidebar'
+import BottomNav from '@/components/layout/BottomNav'
 
 function initials(name: string) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -417,25 +418,7 @@ function AddMembersInner() {
         )}
         </main>
 
-        {/* Mobile bottom nav */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface flex justify-around p-3 tonal-elevation z-50 border-t border-outline-variant">
-          <Link href="/dashboard" className="flex flex-col items-center text-on-surface-variant">
-            <span className="material-symbols-outlined">dashboard</span>
-            <span className="text-[10px] font-bold">Dashboard</span>
-          </Link>
-          <div className="flex flex-col items-center text-secondary">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>group</span>
-            <span className="text-[10px] font-bold">Groups</span>
-          </div>
-          <Link href="/friends" className="flex flex-col items-center text-on-surface-variant">
-            <span className="material-symbols-outlined">person</span>
-            <span className="text-[10px] font-bold">Friends</span>
-          </Link>
-          <Link href="/settlements" className="flex flex-col items-center text-on-surface-variant">
-            <span className="material-symbols-outlined">payments</span>
-            <span className="text-[10px] font-bold">Settlements</span>
-          </Link>
-        </nav>
+        <BottomNav active="dashboard" />
       </div>
     </div>
   )
